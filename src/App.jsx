@@ -1,12 +1,7 @@
 import React, { useState } from "react";
-// import {
-//   exportDB,
-//   importDB,
-//   clearDB,
-//   loadDB
-// } from "./api/mockApi";
-import { loadDB, saveDB, exportDB, importDB, clearDB } from "./utils/db";
 
+import { loadDB, saveDB, exportDB, importDB, clearDB } from "./utils/db";
+import Modal from "./components/Modal";
 import ItemBank from "./components/ItemBank";
 import CompetencyModelBuilder from "./components/CompetencyModelBuilder";
 import EvidenceModelBuilder from "./components/EvidenceModelBuilder";
@@ -22,11 +17,30 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [tab, setTab] = useState("items");
 
+  // 🆕 for handling Import error modal
+  const [importError, setImportError] = useState("");
+
   const tasks = loadDB().tasks;
   const refresh = () => setRefreshFlag(!refreshFlag);
   const notify = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
+  };
+
+    // Wrapper around importDB to catch validation errors
+  const handleImport = (e) => {
+    importDB(
+      e,
+      refresh,
+      (msg) => {
+        if (msg.startsWith("❌")) {
+          setImportError(msg); // show modal if invalid
+        } else {
+          notify(msg); // show toast if success
+        }
+      }
+    );
+    e.target.value = null; // reset
   };
 
   return (
@@ -50,16 +64,18 @@ export default function App() {
               >
                 Export
               </button>
+
               <label className="px-3 py-1 bg-gray-500 text-white rounded cursor-pointer">
                 Import
                 <input
                   type="file"
                   accept="application/json"
                   className="hidden"
-                  onChange={(e) => {
-                    importDB(e, refresh, notify);
-                    e.target.value = null;
-                  }}
+                  // onChange={(e) => {
+                  //   importDB(e, refresh, notify);
+                  //   e.target.value = null;
+                  // }}
+                  onChange={handleImport}
                 />
               </label>
             </>
@@ -163,6 +179,15 @@ export default function App() {
           }}
         />
       )}
+
+      {/* 🆕 Import Error Modal */}
+      <Modal
+        isOpen={!!importError}
+        title="Import Error"
+        message={importError}
+        onClose={() => setImportError("")}
+        onConfirm={() => setImportError("")}
+      />
 
       <Toast message={toast} />
     </div>

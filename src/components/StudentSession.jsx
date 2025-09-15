@@ -8,42 +8,90 @@ export default function StudentSession({ task, onFinish }) {
   const [result, setResult] = useState(null); // <-- store result for modal
   const items = loadDB().items.filter((i) => task.itemIds.includes(i.id));
 
+  // const submit = () => {
+  //   const db = loadDB();
+  //   let score = 0;
+  //   let constructScores = {};
+  //   const model = db.evidenceModels.find((m) => m.id === task.evidenceModelId);
+
+  //   items.forEach((it) => {
+  //     const ans = answers[it.id];
+  //     let correct = false;
+
+  //     if (it.type === "simple") {
+  //       correct = ans?.trim().toLowerCase() === it.correct.trim().toLowerCase();
+  //     } else if (it.type === "mcq") {
+  //       correct = ans === it.correct;
+  //     }
+
+  //     if (correct) {
+  //       score++;
+  //       model.constructs.forEach((c) => {
+  //         constructScores[c] = (constructScores[c] || 0) + 1;
+  //       });
+  //     }
+  //   });
+
+  //   db.sessions.push({
+  //     id: `s${Date.now()}`,
+  //     taskId: task.id,
+  //     responses: answers,
+  //     score,
+  //     constructScores,
+  //   });
+  //   saveDB(db);
+
+  //   // instead of alert, show modal
+  //   setResult({ score, total: items.length });
+  // };
+
   const submit = () => {
-    const db = loadDB();
-    let score = 0;
-    let constructScores = {};
-    const model = db.evidenceModels.find((m) => m.id === task.evidenceModelId);
+  const db = loadDB();
+  let score = 0;
+  let constructScores = {};
+  let scoresArray = [];
 
-    items.forEach((it) => {
-      const ans = answers[it.id];
-      let correct = false;
+  const model = db.evidenceModels.find((m) => m.id === task.evidenceModelId);
 
-      if (it.type === "simple") {
-        correct = ans?.trim().toLowerCase() === it.correct.trim().toLowerCase();
-      } else if (it.type === "mcq") {
-        correct = ans === it.correct;
-      }
-
-      if (correct) {
-        score++;
-        model.constructs.forEach((c) => {
-          constructScores[c] = (constructScores[c] || 0) + 1;
+  items.forEach((it) => {
+    const ans = answers[it.id];
+    const correct = ans === it.correct;
+    if (correct) {
+      score++;
+      model.constructs.forEach((c) => {
+        constructScores[c.text] = (constructScores[c.text] || 0) + 1;
+        scoresArray.push({
+          constructId: c.id,
+          value: 1,
         });
-      }
-    });
+      });
+    } else {
+      model.constructs.forEach((c) => {
+        scoresArray.push({
+          constructId: c.id,
+          value: 0,
+        });
+      });
+    }
+  });
 
-    db.sessions.push({
-      id: `s${Date.now()}`,
-      taskId: task.id,
-      responses: answers,
-      score,
-      constructScores,
-    });
-    saveDB(db);
+  db.sessions.push({
+    id: `s${Date.now()}`,
+    taskId: task.id,
+    responses: answers,
+    score,
+    constructScores,
+    scores: scoresArray // <-- new field
+  });
 
-    // instead of alert, show modal
-    setResult({ score, total: items.length });
+  saveDB(db);
+  // alert(`Finished! Score ${score}/${items.length}`);
+  // onFinish();
+  
+  // instead of alert, show modal
+  setResult({ score, total: items.length });
   };
+
 
   return (
     <Card title={`Task: ${task.title}`}>
