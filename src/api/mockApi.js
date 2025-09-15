@@ -5,10 +5,11 @@ export const STORAGE_KEY = "ecd_mock_db_v2";
 // Schema definition for validation
 const ECD_SCHEMA = {
   type: "object",
-  required: ["items", "evidenceModels", "tasks", "sessions"],
+  required: ["items", "evidenceModels", "competencyModels", "tasks", "sessions"],
   properties: {
     items: { type: "array" },
     evidenceModels: { type: "array" },
+    competencyModels: { type: "array" },
     tasks: { type: "array" },
     sessions: { type: "array" }
   }
@@ -21,7 +22,7 @@ export function loadDB() {
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw
     ? JSON.parse(raw)
-    : { items: [], evidenceModels: [], tasks: [], sessions: [] };
+    : { items: [], evidenceModels: [], competencyModels: [], tasks: [], sessions: [] };
 }
 
 export function saveDB(db) {
@@ -68,7 +69,7 @@ export function importDB(e, refresh, notify) {
 }
 
 export function clearDB(refresh, notify) {
-  saveDB({ items: [], evidenceModels: [], tasks: [], sessions: [] });
+  saveDB({ items: [], evidenceModels: [], competencyModels: [], tasks: [], sessions: [] });
   refresh();
   notify("All data cleared.");
 }

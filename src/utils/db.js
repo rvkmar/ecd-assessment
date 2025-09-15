@@ -7,7 +7,7 @@ export function loadDB() {
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw
     ? JSON.parse(raw)
-    : { items: [], evidenceModels: [], tasks: [], sessions: [] };
+    : { items: [], evidenceModels: [], competencyModels: [], tasks: [], sessions: [] };
 }
 
 /** Save database to localStorage */
