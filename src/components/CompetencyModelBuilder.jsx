@@ -270,9 +270,10 @@ export default function CompetencyModels({ notify }) {
         <button
           type="button"
           onClick={() => setShowGraph((prev) => !prev)}
+          disabled={competencies.length === 0}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
             showGraph ? "bg-green-500" : "bg-gray-300"
-          }`}
+          } ${competencies.length === 0 ? "opacity-40 cursor-not-allowed" : ""}`}
         >
           <span
             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -280,6 +281,7 @@ export default function CompetencyModels({ notify }) {
             }`}
           />
         </button>
+
       </div>
 
       <div className={`grid ${showGraph ? "md:grid-cols-2" : "grid-cols-1"} gap-4`}>
