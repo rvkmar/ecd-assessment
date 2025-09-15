@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { loadDB, saveDB } from "../utils/db";
+// import { loadDB, saveDB } from "../utils/db";
+import { loadDB, saveDB, renumberRootCompetencies } from "../utils/db";
+
 import Modal from "./Modal";
 import Card from "./Card";
 
@@ -79,7 +81,7 @@ function CompetencyGraph({ competencies }) {
   );
 }
 
-function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 1 }) {
+function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0, rootIndex = 1 }) {
   const [expanded, setExpanded] = useState({});
   const children = nodes.filter((n) => n.parentId === parentId);
 
@@ -87,77 +89,165 @@ function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 1 })
 
   return (
     <ul className="pl-8 border-l-2 border-gray-300">
-      {children.map((node) => (
-        <li key={node.id} className="mb-1">
-          <div className="flex items-center gap-2">
-            {/* Expand/Collapse */}
-            {nodes.some((n) => n.parentId === node.id) && (
+      {children.map((node, idx) => {
+        const labelPrefix =
+          level === 0 ? `${node.modelLabel || "cm?"}:` : `Level ${level}:`;
+
+        return (
+          <li key={node.id} className="mb-1">
+            <div className="flex items-center gap-2">
+              {/* Expand/Collapse */}
+              {nodes.some((n) => n.parentId === node.id) && (
+                <button
+                  className="text-xs bg-gray-200 px-1 rounded"
+                  onClick={() =>
+                    setExpanded((prev) => ({
+                      ...prev,
+                      [node.id]: !prev[node.id],
+                    }))
+                  }
+                >
+                  {expanded[node.id] ? "−" : "+"}
+                </button>
+              )}
+
+              {/* Competency name with prefix */}
+              <span className="font-medium">
+                {labelPrefix} {node.name}
+              </span>
+
+              {/* Actions */}
               <button
-                className="text-xs bg-gray-200 px-1 rounded"
-                onClick={() =>
-                  setExpanded((prev) => ({
-                    ...prev,
-                    [node.id]: !prev[node.id],
-                  }))
-                }
+                onClick={() => onEdit(node)}
+                className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded"
               >
-                {expanded[node.id] ? "−" : "+"}
+                Edit
               </button>
+              <button
+                onClick={() => onRemove(node.id)}
+                className="text-xs bg-red-500 text-white px-2 py-0.5 rounded"
+              >
+                Remove
+              </button>
+            </div>
+
+            {/* Children */}
+            {expanded[node.id] && (
+              <CompetencyTree
+                nodes={nodes}
+                parentId={node.id}
+                onEdit={onEdit}
+                onRemove={onRemove}
+                level={level + 1}
+              />
             )}
-
-            {/* Competency name with level */}
-            <span className="font-medium">
-              Level {level}: {node.name}
-            </span>
-
-            {/* Actions */}
-            <button
-              onClick={() => onEdit(node)}
-              className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded"
-            >
-              {/* Edit */}
-              📝
-            </button>
-            <button
-              onClick={() => onRemove(node.id)}
-              className="text-xs bg-red-500 text-white px-2 py-0.5 rounded"
-            >
-              {/* Remove */}
-              🗑️
-            </button>
-          </div>
-
-          {/* Children */}
-          {expanded[node.id] && (
-            <CompetencyTree
-              nodes={nodes}
-              parentId={node.id}
-              onEdit={onEdit}
-              onRemove={onRemove}
-              level={level + 1}
-            />
-          )}
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
+// function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 1 }) {
+//   const [expanded, setExpanded] = useState({});
+//   const children = nodes.filter((n) => n.parentId === parentId);
+
+//   if (!children.length) return null;
+
+//   return (
+//     <ul className="pl-8 border-l-2 border-gray-300">
+//       {children.map((node) => (
+//         <li key={node.id} className="mb-1">
+//           <div className="flex items-center gap-2">
+//             {/* Expand/Collapse */}
+//             {nodes.some((n) => n.parentId === node.id) && (
+//               <button
+//                 className="text-xs bg-gray-200 px-1 rounded"
+//                 onClick={() =>
+//                   setExpanded((prev) => ({
+//                     ...prev,
+//                     [node.id]: !prev[node.id],
+//                   }))
+//                 }
+//               >
+//                 {expanded[node.id] ? "−" : "+"}
+//               </button>
+//             )}
+
+//             {/* Competency name with level */}
+//             <span className="font-medium">
+//               Level {level}: {node.name}
+//             </span>
+
+//             {/* Actions */}
+//             <button
+//               onClick={() => onEdit(node)}
+//               className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded"
+//             >
+//               {/* Edit */}
+//               📝
+//             </button>
+//             <button
+//               onClick={() => onRemove(node.id)}
+//               className="text-xs bg-red-500 text-white px-2 py-0.5 rounded"
+//             >
+//               {/* Remove */}
+//               🗑️
+//             </button>
+//           </div>
+
+//           {/* Children */}
+//           {expanded[node.id] && (
+//             <CompetencyTree
+//               nodes={nodes}
+//               parentId={node.id}
+//               onEdit={onEdit}
+//               onRemove={onRemove}
+//               level={level + 1}
+//             />
+//           )}
+//         </li>
+//       ))}
+//     </ul>
+//   );
+// }
+
 /* --- Dropdown helper --- */
-function getCompetencyOptions(nodes, parentId = null, level = 1) {
+function getCompetencyOptions(nodes, parentId = null, level = 0) {
   const children = nodes.filter((n) => n.parentId === parentId);
   let options = [];
 
   children.forEach((c) => {
+    const labelPrefix =
+      level === 0 ? `${c.modelLabel || "cm?"}:` : `Level ${level}:`;
+
     options.push({
       id: c.id,
-      label: `${"— ".repeat(level - 1)}Level ${level}: ${c.name}`,
+      label: `${"— ".repeat(level)}${labelPrefix} ${c.name}`,
     });
-    options = options.concat(getCompetencyOptions(nodes, c.id, level + 1));
+
+    options = options.concat(
+      getCompetencyOptions(nodes, c.id, level + 1)
+    );
   });
 
   return options;
 }
+
+// function getCompetencyOptions(nodes, parentId = null, level = 1) {
+//   const children = nodes.filter((n) => n.parentId === parentId);
+//   let options = [];
+
+//   children.forEach((c) => {
+//     options.push({
+//       id: c.id,
+//       label: `${"— ".repeat(level - 1)}Level ${level}: ${c.name}`,
+//     });
+//     options = options.concat(getCompetencyOptions(nodes, c.id, level + 1));
+//   });
+
+//   return options;
+// }
 
 
 // function CompetencyTree({ nodes, parentId = null, onEdit, onRemove }) {
@@ -245,15 +335,20 @@ export default function CompetencyModels({ notify }) {
       );
       notify("Competency updated.");
     } else {
+      // count existing root competencies
+      const rootCount = db.competencyModels.filter((c) => !c.parentId).length;
+      const modelLabel = draftParentId ? null : `cm${rootCount + 1}`;
+
       db.competencyModels.push({
         id: `c${Date.now()}`,
         name: draftName,
         description: draftDescription,
         parentId: draftParentId || null,
+        modelLabel: null,
       });
       notify("Competency added.");
     }
-
+    renumberRootCompetencies(db);
     saveDB(db);
     setCompetencies(db.competencyModels);
     setDraftName("");
@@ -265,6 +360,7 @@ export default function CompetencyModels({ notify }) {
   const removeCompetency = (id) => {
     const db = loadDB();
     db.competencyModels = db.competencyModels.filter((c) => c.id !== id);
+    renumberRootCompetencies(db);
     saveDB(db);
     setCompetencies(db.competencyModels);
     notify("Competency removed.");

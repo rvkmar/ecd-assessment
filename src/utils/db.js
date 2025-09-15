@@ -5,10 +5,27 @@ const STORAGE_KEY = "ecd_mock_db_v2";
 /** Load database from localStorage */
 export function loadDB() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  return raw
-    ? JSON.parse(raw)
-    : { items: [], evidenceModels: [], competencyModels: [], tasks: [], sessions: [] };
+  let db = raw ? JSON.parse(raw) : { items: [], evidenceModels: [], tasks: [], sessions: [], competencyModels: [] };
+
+  // Migration: assign cmX to roots missing modelLabel
+  let count = 1;
+  db.competencyModels
+    .filter((c) => !c.parentId)
+    .forEach((c) => {
+      if (!c.modelLabel) {
+        c.modelLabel = `cm${count++}`;
+      }
+    });
+
+  return db;
 }
+
+// export function loadDB() {
+//   const raw = localStorage.getItem(STORAGE_KEY);
+//   return raw
+//     ? JSON.parse(raw)
+//     : { items: [], evidenceModels: [], competencyModels: [], tasks: [], sessions: [] };
+// }
 
 /** Save database to localStorage */
 export function saveDB(db) {
@@ -49,3 +66,33 @@ export function importDB(event, refresh, notify) {
   };
   reader.readAsText(file);
 }
+
+export function renumberRootCompetencies(db) {
+  if (!db.competencyModels) db.competencyModels = [];
+
+  // Get all root competencies (no parentId)
+  const roots = db.competencyModels.filter((c) => !c.parentId);
+
+  // Sort roots by creation order (using id timestamp if available)
+  roots.sort((a, b) => {
+    const ta = parseInt(a.id?.replace(/\D/g, ""), 10) || 0;
+    const tb = parseInt(b.id?.replace(/\D/g, ""), 10) || 0;
+    return ta - tb;
+  });
+
+  // Assign unique labels
+  roots.forEach((root, idx) => {
+    root.modelLabel = `cm${idx + 1}`;
+    assignLevels(root.id, 1, db.competencyModels);
+  });
+}
+
+function assignLevels(parentId, level, all) {
+  const children = all.filter((c) => c.parentId === parentId);
+
+  children.forEach((child) => {
+    child.levelLabel = `Level ${level}`;
+    assignLevels(child.id, level + 1, all);
+  });
+}
+
