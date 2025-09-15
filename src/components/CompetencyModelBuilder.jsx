@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-// import { loadDB, saveDB } from "../utils/db";
 import { loadDB, saveDB, renumberRootCompetencies } from "../utils/db";
 
 import Modal from "./Modal";
@@ -148,70 +147,6 @@ function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0, r
   );
 }
 
-// function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 1 }) {
-//   const [expanded, setExpanded] = useState({});
-//   const children = nodes.filter((n) => n.parentId === parentId);
-
-//   if (!children.length) return null;
-
-//   return (
-//     <ul className="pl-8 border-l-2 border-gray-300">
-//       {children.map((node) => (
-//         <li key={node.id} className="mb-1">
-//           <div className="flex items-center gap-2">
-//             {/* Expand/Collapse */}
-//             {nodes.some((n) => n.parentId === node.id) && (
-//               <button
-//                 className="text-xs bg-gray-200 px-1 rounded"
-//                 onClick={() =>
-//                   setExpanded((prev) => ({
-//                     ...prev,
-//                     [node.id]: !prev[node.id],
-//                   }))
-//                 }
-//               >
-//                 {expanded[node.id] ? "−" : "+"}
-//               </button>
-//             )}
-
-//             {/* Competency name with level */}
-//             <span className="font-medium">
-//               Level {level}: {node.name}
-//             </span>
-
-//             {/* Actions */}
-//             <button
-//               onClick={() => onEdit(node)}
-//               className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded"
-//             >
-//               {/* Edit */}
-//               📝
-//             </button>
-//             <button
-//               onClick={() => onRemove(node.id)}
-//               className="text-xs bg-red-500 text-white px-2 py-0.5 rounded"
-//             >
-//               {/* Remove */}
-//               🗑️
-//             </button>
-//           </div>
-
-//           {/* Children */}
-//           {expanded[node.id] && (
-//             <CompetencyTree
-//               nodes={nodes}
-//               parentId={node.id}
-//               onEdit={onEdit}
-//               onRemove={onRemove}
-//               level={level + 1}
-//             />
-//           )}
-//         </li>
-//       ))}
-//     </ul>
-//   );
-// }
-
 /* --- Dropdown helper --- */
 function getCompetencyOptions(nodes, parentId = null, level = 0) {
   const children = nodes.filter((n) => n.parentId === parentId);
@@ -234,81 +169,6 @@ function getCompetencyOptions(nodes, parentId = null, level = 0) {
   return options;
 }
 
-// function getCompetencyOptions(nodes, parentId = null, level = 1) {
-//   const children = nodes.filter((n) => n.parentId === parentId);
-//   let options = [];
-
-//   children.forEach((c) => {
-//     options.push({
-//       id: c.id,
-//       label: `${"— ".repeat(level - 1)}Level ${level}: ${c.name}`,
-//     });
-//     options = options.concat(getCompetencyOptions(nodes, c.id, level + 1));
-//   });
-
-//   return options;
-// }
-
-
-// function CompetencyTree({ nodes, parentId = null, onEdit, onRemove }) {
-//   const [expanded, setExpanded] = useState({});
-//   const children = nodes.filter((n) => n.parentId === parentId);
-
-//   if (!children.length) return null;
-
-//   return (
-//     <ul className="pl-4 border-l border-gray-300">
-//       {children.map((node) => (
-//         <li key={node.id} className="mb-1">
-//           <div className="flex items-center gap-2">
-//             {/* Expand/Collapse */}
-//             {nodes.some((n) => n.parentId === node.id) && (
-//               <button
-//                 className="text-xs bg-gray-200 px-1 rounded"
-//                 onClick={() =>
-//                   setExpanded((prev) => ({
-//                     ...prev,
-//                     [node.id]: !prev[node.id],
-//                   }))
-//                 }
-//               >
-//                 {expanded[node.id] ? "−" : "+"}
-//               </button>
-//             )}
-
-//             {/* Competency name */}
-//             <span className="font-medium">{node.name}</span>
-
-//             {/* Actions */}
-//             <button
-//               onClick={() => onEdit(node)}
-//               className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded"
-//             >
-//               Edit
-//             </button>
-//             <button
-//               onClick={() => onRemove(node.id)}
-//               className="text-xs bg-red-500 text-white px-2 py-0.5 rounded"
-//             >
-//               Remove
-//             </button>
-//           </div>
-
-//           {/* Children */}
-//           {expanded[node.id] && (
-//             <CompetencyTree
-//               nodes={nodes}
-//               parentId={node.id}
-//               onEdit={onEdit}
-//               onRemove={onRemove}
-//             />
-//           )}
-//         </li>
-//       ))}
-//     </ul>
-//   );
-// }
-
 export default function CompetencyModels({ notify }) {
   const [competencies, setCompetencies] = useState(loadDB().competencyModels || []);
   const [draftName, setDraftName] = useState("");
@@ -316,7 +176,7 @@ export default function CompetencyModels({ notify }) {
   const [draftParentId, setDraftParentId] = useState("");
   const [editId, setEditId] = useState(null);
   const [modal, setModal] = useState({ open: false, id: null });
-  const [showGraph, setShowGraph] = useState(true); // 👈 NEW STATE
+  const [showGraph, setShowGraph] = useState(false); // 👈 Toggle disabled by default
 
   const saveCompetency = () => {
     if (!draftName.trim()) return notify("Enter competency name");
@@ -329,7 +189,7 @@ export default function CompetencyModels({ notify }) {
               ...c,
               name: draftName,
               description: draftDescription,
-              parentId: draftParentId || null,
+              parentId: draftParentId.length ? draftParentId : [] || null,
             }
           : c
       );
@@ -396,19 +256,6 @@ export default function CompetencyModels({ notify }) {
           ))}
         </select>
 
-
-        {/* <select
-          className="border p-2 w-full"
-          value={draftParentId}
-          onChange={(e) => setDraftParentId(e.target.value)}
-        >
-          <option value="">No parent (root competency)</option>
-          {competencies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select> */}
         <button
           onClick={saveCompetency}
           className="px-3 py-1 bg-blue-500 text-white rounded"

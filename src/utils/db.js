@@ -20,13 +20,6 @@ export function loadDB() {
   return db;
 }
 
-// export function loadDB() {
-//   const raw = localStorage.getItem(STORAGE_KEY);
-//   return raw
-//     ? JSON.parse(raw)
-//     : { items: [], evidenceModels: [], competencyModels: [], tasks: [], sessions: [] };
-// }
-
 /** Save database to localStorage */
 export function saveDB(db) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
