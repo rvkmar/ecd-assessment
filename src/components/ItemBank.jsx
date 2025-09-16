@@ -95,8 +95,8 @@ export default function ItemBank({ notify }) {
           value={draft.type}
           onChange={(e) => setDraft({ ...draft, type: e.target.value })}
         >
-          <option value="simple">Simple Question</option>
-          <option value="mcq">MCQ</option>
+          <option value="simple">Constructed Response Question</option>
+          <option value="mcq">Multiple Choice Question</option>
         </select>
 
         <input
