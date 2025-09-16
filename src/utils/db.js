@@ -118,17 +118,44 @@ function assignLevels(parentId, level, all) {
 }
 
 export function renumberRootEvidenceModels(db) {
-  if (!db.evidenceModels) db.evidenceModels = [];
+  let counter = 1;
 
-  // Sort by creation timestamp
-  const roots = [...db.evidenceModels];
-  roots.sort((a, b) => {
-    const ta = parseInt(a.id?.replace(/\D/g, ""), 10) || 0;
-    const tb = parseInt(b.id?.replace(/\D/g, ""), 10) || 0;
-    return ta - tb;
+  // Sort to keep numbering stable
+  db.evidenceModels.forEach((m) => {
+    if (!m.modelLabel) {
+      m.modelLabel = `em${counter}`;
+      counter++;
+    } else {
+      // Ensure counter moves past any existing labels
+      const num = parseInt(m.modelLabel.replace("em", ""), 10);
+      if (!isNaN(num) && num >= counter) {
+        counter = num + 1;
+      }
+    }
+  });
+}
+
+/** 
+ * Build hierarchical options for competencies
+ * Example: 
+ * cm1: Algebra
+ *   Level 1: Linear Equations
+ *   Level 2: Quadratic Equations
+ */
+export function buildCompetencyOptions(nodes, parentId = null, level = 0) {
+  const children = nodes.filter((n) => n.parentId === parentId);
+  let options = [];
+
+  children.forEach((c) => {
+    const prefix = level === 0 ? `${c.modelLabel || "cm?"}:` : `Level ${level}:`;
+    options.push({
+      id: c.id,
+      label: `${"— ".repeat(level)}${prefix} ${c.name}`,
+    });
+
+    // recursively build children
+    options = options.concat(buildCompetencyOptions(nodes, c.id, level + 1));
   });
 
-  roots.forEach((root, idx) => {
-    root.modelLabel = `em${idx + 1}`;
-  });
+  return options;
 }

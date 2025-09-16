@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import Card from "./Card";
 import Modal from "./Modal";
-import { loadDB, saveDB, renumberRootEvidenceModels } from "../utils/db";
+import { loadDB, saveDB, renumberRootEvidenceModels, buildCompetencyOptions } from "../utils/db";
 
 export default function EvidenceModelBuilder({ notify }) {
   const [models, setModels] = useState(loadDB().evidenceModels || []);
@@ -10,10 +10,16 @@ export default function EvidenceModelBuilder({ notify }) {
   const [modal, setModal] = useState({ open: false, id: null });
   const [editingId, setEditingId] = useState(null);
 
-
   // Load competencies across all competency models
+  // const competencyModels = loadDB().competencyModels || [];
+  // const allCompetencies = competencyModels.flatMap((cm) => cm.competencies);
+
+  // ✅ Load competencies with hierarchical labels
   const competencyModels = loadDB().competencyModels || [];
-  const allCompetencies = competencyModels.flatMap((cm) => cm.competencies);
+  const allCompetencies = buildCompetencyOptions(competencyModels);
+
+  // For quick lookup (id → label)
+  const competencyLookup = Object.fromEntries(allCompetencies.map(c => [c.id, c.label]));
 
   const addModel = () => {
     if (!name.trim()) return notify("Enter model name");
@@ -161,7 +167,15 @@ export default function EvidenceModelBuilder({ notify }) {
                 <ul className="text-sm ml-4 space-y-1">
                   {m.constructs.map((c) => (
                     <li key={c.id} className="flex justify-between items-center gap-2">
-                      <span>{c.text}</span>
+                      <span>
+                        {c.text}
+                        {c.linkedCompetencyId && (
+                          <span className="ml-2 text-xs text-gray-600">
+                            ↔ {competencyLookup[c.linkedCompetencyId] || c.linkedCompetencyId}
+                          </span>
+                        )}
+                      </span>
+
                       {editingId === m.id && (
                         <button
                           className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
@@ -188,15 +202,18 @@ export default function EvidenceModelBuilder({ notify }) {
                   {m.observations.map((o, i) => (
                     <li key={i} className="flex justify-between items-center">
                       <span>{o}</span>
-                      <button
-                        className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                        onClick={() => removeObservation(m.id, i)}
-                      >
-                        −
-                      </button>
+                      {editingId === m.id && (
+                        <button
+                          className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+                          onClick={() => removeObservation(m.id, i)}
+                        >
+                          −
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
+
                 {editingId === m.id && (
                   <ObservationInput onAdd={(txt) => addObservation(m.id, txt)} />
                 )}
@@ -254,9 +271,14 @@ function ConstructInput({ onAdd, competencies }) {
         onChange={(e) => setLinked(e.target.value)}
       >
         <option value="">Link to competency</option>
-        {competencies.map((c, i) => (
+        {/* {competencies.map((c, i) => (
           <option key={i} value={c}>
             {c}
+          </option>
+        ))} */}
+        {competencies.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.label}
           </option>
         ))}
       </select>
