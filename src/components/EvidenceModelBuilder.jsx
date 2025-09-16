@@ -8,6 +8,8 @@ export default function EvidenceModelBuilder({ notify }) {
   const [models, setModels] = useState(loadDB().evidenceModels || []);
   const [name, setName] = useState("");
   const [modal, setModal] = useState({ open: false, id: null });
+  const [editingId, setEditingId] = useState(null);
+
 
   // Load competencies across all competency models
   const competencyModels = loadDB().competencyModels || [];
@@ -111,98 +113,112 @@ export default function EvidenceModelBuilder({ notify }) {
 
       <div className="space-y-4">
         {models.map((m) => (
-          <div key={m.id} className="border rounded-lg p-3 bg-gray-50 space-y-2">
+          // <div key={m.id} className="border rounded-lg p-3 bg-gray-50 space-y-2">
 
-            {/* <div className="flex justify-between items-center">
-              <h4 className="font-bold">{m.name}</h4>
-              <button
-                onClick={() => setModal({ open: true, id: m.id })}
-                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-              >
-                Remove
-              </button>
-            </div> */}
+          //   <div className="flex justify-between items-center">
+          //     <h4 className="font-bold">{m.name}</h4>
+          //     <button
+          //       onClick={() => setModal({ open: true, id: m.id })}
+          //       className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+          //     >
+          //       Remove
+          //     </button>
+          //   </div>
       
-            <div className="flex justify-between items-center">
-              <h4 className="font-bold">
-                {m.modelLabel ? `${m.modelLabel}: ` : ""}{m.name}
-              </h4>
-              <button
-                onClick={() => setModal({ open: true, id: m.id })}
-                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-              >
-                Remove
-              </button>
-            </div>
-
-
-            {/* Constructs */}
-            <div>
-              <h5 className="font-semibold">Constructs</h5>
-              <ul className="text-sm ml-4 space-y-1">
-                {m.constructs.map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex justify-between items-center gap-2"
+            <div key={m.id} className="border rounded-lg p-3 bg-gray-50 space-y-2">
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold">
+                  {m.modelLabel ? `${m.modelLabel}: ` : ""}{m.name}
+                </h4>
+                <div className="flex gap-2">
+                  {editingId === m.id ? (
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
+                    >
+                      Confirm
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setEditingId(m.id)}
+                      className="px-2 py-0.5 bg-yellow-500 text-white rounded text-xs"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setModal({ open: true, id: m.id })}
+                    className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
                   >
-                    <span>
-                      {c.text}
-                      {c.linkedCompetencyId && (
-                        <span className="ml-2 text-xs text-gray-600">
-                          ↔ {c.linkedCompetencyId}
-                        </span>
+                    Remove
+                  </button>
+                </div>
+              </div>
+
+              {/* Constructs */}
+              <div>
+                <h5 className="font-semibold">Constructs</h5>
+                <ul className="text-sm ml-4 space-y-1">
+                  {m.constructs.map((c) => (
+                    <li key={c.id} className="flex justify-between items-center gap-2">
+                      <span>{c.text}</span>
+                      {editingId === m.id && (
+                        <button
+                          className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+                          onClick={() => removeConstruct(m.id, c.id)}
+                        >
+                          −
+                        </button>
                       )}
-                    </span>
-                    <button
-                      className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                      onClick={() => removeConstruct(m.id, c.id)}
-                    >
-                      −
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <ConstructInput
-                onAdd={(txt, comp) => addConstruct(m.id, txt, comp)}
-                competencies={allCompetencies}
-              />
-            </div>
+                    </li>
+                  ))}
+                </ul>
+                {editingId === m.id && (
+                  <ConstructInput
+                    onAdd={(txt, comp) => addConstruct(m.id, txt, comp)}
+                    competencies={allCompetencies}
+                  />
+                )}
+              </div>
 
-            {/* Observations */}
-            <div>
-              <h5 className="font-semibold">Observations</h5>
-              <ul className="text-sm ml-4 space-y-1">
-                {m.observations.map((o, i) => (
-                  <li key={i} className="flex justify-between items-center">
-                    <span>{o}</span>
-                    <button
-                      className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                      onClick={() => removeObservation(m.id, i)}
-                    >
-                      −
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <ObservationInput onAdd={(txt) => addObservation(m.id, txt)} />
-            </div>
+              {/* Observations */}
+              <div>
+                <h5 className="font-semibold">Observations</h5>
+                <ul className="text-sm ml-4 space-y-1">
+                  {m.observations.map((o, i) => (
+                    <li key={i} className="flex justify-between items-center">
+                      <span>{o}</span>
+                      <button
+                        className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+                        onClick={() => removeObservation(m.id, i)}
+                      >
+                        −
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {editingId === m.id && (
+                  <ObservationInput onAdd={(txt) => addObservation(m.id, txt)} />
+                )}
+              </div>
 
-            {/* Scoring Rule */}
-            <div>
-              <h5 className="font-semibold">Scoring Rule</h5>
-              <select
-                className="border p-2 rounded"
-                value={m.scoringRule}
-                onChange={(e) => updateRule(m.id, e.target.value)}
-              >
-                <option value="sum">Sum</option>
-                <option value="average">Average</option>
-                <option value="irt">IRT (R backend)</option>
-              </select>
-            </div>
+              {/* Scoring Rule */}
+              <div>
+                <h5 className="font-semibold">Scoring Rule</h5>
+                  <select
+                    className="border p-2 rounded"
+                    value={m.scoringRule}
+                    disabled={editingId !== m.id}
+                    onChange={(e) => updateRule(m.id, e.target.value)}
+                  >
+                    <option value="sum">Sum</option>
+                    <option value="average">Average</option>
+                    <option value="irt">IRT (R backend)</option>
+                  </select>
+              </div>
           </div>
-        ))}
-      </div>
+         ))} 
+        </div>
 
       {/* Delete modal */}
       <Modal
