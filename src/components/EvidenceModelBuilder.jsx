@@ -85,14 +85,14 @@ export default function EvidenceModelBuilder({ notify }) {
   const addObservation = (id, text) => {
     if (!text.trim()) return;
     updateModel(id, (m) => ({ observations: [...m.observations, text] }));
-    notify("Observation added.");
+    notify("Evidence Rule / Observation added.");
   };
 
   const removeObservation = (id, index) => {
     updateModel(id, (m) => ({
       observations: m.observations.filter((_, i) => i !== index)
     }));
-    notify("Observation removed.");
+    notify("Evidence Rule / Observation removed.");
   };
 
   const updateRule = (id, rule) => {
@@ -197,7 +197,7 @@ export default function EvidenceModelBuilder({ notify }) {
 
               {/* Observations */}
               <div>
-                <h5 className="font-semibold">Observations</h5>
+                <h5 className="font-semibold">Evidence Rules / Observations</h5>
                 <ul className="text-sm ml-4 space-y-1">
                   {m.observations.map((o, i) => (
                     <li key={i} className="flex justify-between items-center">
@@ -304,7 +304,7 @@ function ObservationInput({ onAdd }) {
         className="border p-1 flex-1 text-sm"
         value={val}
         onChange={(e) => setVal(e.target.value)}
-        placeholder="New observation"
+        placeholder="New Evidence Rule / Observation"
       />
       <button
         className="px-2 bg-green-500 text-white text-xs rounded"
