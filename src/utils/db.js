@@ -8,12 +8,13 @@ export function loadDB() {
   let db = raw ? JSON.parse(raw) : { items: [], evidenceModels: [], tasks: [], sessions: [], competencyModels: [] };
 
   // Migration: assign cmX to roots missing modelLabel
-  let count = 1;
+  let cmCount = 1;
   db.competencyModels
-    .filter((c) => !c.parentIds?.length) // ✅ root check
+    // .filter((c) => !c.parentIds?.length) // ✅ root check
+    .filter((c) => !c.parentId)
     .forEach((c) => {
       if (!c.modelLabel) {
-        c.modelLabel = `cm${count++}`;
+        c.modelLabel = `cm${cmCount++}`;
       }
     });
     
@@ -26,6 +27,15 @@ export function loadDB() {
       return c;
     });
   }
+
+  // Migration: assign emX to evidence model roots
+  let emCount = 1;
+  db.evidenceModels
+    .forEach((e) => {
+      if (!e.modelLabel) {
+        e.modelLabel = `em${emCount++}`;
+      }
+    });
 
   return db;
 }
@@ -107,3 +117,18 @@ function assignLevels(parentId, level, all) {
   });
 }
 
+export function renumberRootEvidenceModels(db) {
+  if (!db.evidenceModels) db.evidenceModels = [];
+
+  // Sort by creation timestamp
+  const roots = [...db.evidenceModels];
+  roots.sort((a, b) => {
+    const ta = parseInt(a.id?.replace(/\D/g, ""), 10) || 0;
+    const tb = parseInt(b.id?.replace(/\D/g, ""), 10) || 0;
+    return ta - tb;
+  });
+
+  roots.forEach((root, idx) => {
+    root.modelLabel = `em${idx + 1}`;
+  });
+}

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import Card from "./Card";
 import Modal from "./Modal";
-import { loadDB, saveDB } from "../utils/db";
+import { loadDB, saveDB, renumberRootEvidenceModels } from "../utils/db";
 
 export default function EvidenceModelBuilder({ notify }) {
   const [models, setModels] = useState(loadDB().evidenceModels || []);
@@ -24,6 +24,10 @@ export default function EvidenceModelBuilder({ notify }) {
       scoringRule: "sum"
     };
     db.evidenceModels.push(newModel);
+
+    // ✅ Ensure em1, em2… numbering
+    renumberRootEvidenceModels(db);
+
     saveDB(db);
     setModels(db.evidenceModels);
     setName("");
@@ -43,6 +47,10 @@ export default function EvidenceModelBuilder({ notify }) {
     const db = loadDB();
     db.evidenceModels = db.evidenceModels.filter((m) => m.id !== id);
     db.tasks = db.tasks.filter((t) => t.evidenceModelId !== id);
+
+    // ✅ Renumber after delete
+    renumberRootEvidenceModels(db);
+
     saveDB(db);
     setModels(db.evidenceModels);
     notify("Model removed.");
@@ -104,7 +112,8 @@ export default function EvidenceModelBuilder({ notify }) {
       <div className="space-y-4">
         {models.map((m) => (
           <div key={m.id} className="border rounded-lg p-3 bg-gray-50 space-y-2">
-            <div className="flex justify-between items-center">
+
+            {/* <div className="flex justify-between items-center">
               <h4 className="font-bold">{m.name}</h4>
               <button
                 onClick={() => setModal({ open: true, id: m.id })}
@@ -112,7 +121,20 @@ export default function EvidenceModelBuilder({ notify }) {
               >
                 Remove
               </button>
+            </div> */}
+      
+            <div className="flex justify-between items-center">
+              <h4 className="font-bold">
+                {m.modelLabel ? `${m.modelLabel}: ` : ""}{m.name}
+              </h4>
+              <button
+                onClick={() => setModal({ open: true, id: m.id })}
+                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+              >
+                Remove
+              </button>
             </div>
+
 
             {/* Constructs */}
             <div>
