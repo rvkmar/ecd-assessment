@@ -10,12 +10,22 @@ export function loadDB() {
   // Migration: assign cmX to roots missing modelLabel
   let count = 1;
   db.competencyModels
-    .filter((c) => !c.parentId)
+    .filter((c) => !c.parentIds?.length) // ✅ root check
     .forEach((c) => {
       if (!c.modelLabel) {
         c.modelLabel = `cm${count++}`;
       }
     });
+    
+  // 🔄 Migration: convert old `parentId` → `parentIds`
+  if (db.competencyModels) {
+    db.competencyModels = db.competencyModels.map((c) => {
+      if (!c.parentIds) {
+        return { ...c, parentIds: c.parentId ? [c.parentId] : [] };
+      }
+      return c;
+    });
+  }
 
   return db;
 }
@@ -50,21 +60,29 @@ export function importDB(event, refresh, notify) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
+      const parsed = JSON.parse(e.target.result);
+
+      // ✅ Validate JSON schema before saving
+      if (!parsed || typeof parsed !== "object" || !parsed.competencyModels) {
+        throw new Error("Invalid schema");
+      }
+
       localStorage.setItem(STORAGE_KEY, e.target.result);
       refresh();
       notify("Imported successfully.");
     } catch (err) {
-      notify("Failed to import DB.");
+      notify("Invalid JSON file — import aborted.");
     }
   };
   reader.readAsText(file);
 }
 
+/** Auto renumber competency roots and assign level labels */
 export function renumberRootCompetencies(db) {
   if (!db.competencyModels) db.competencyModels = [];
 
   // Get all root competencies (no parentId)
-  const roots = db.competencyModels.filter((c) => !c.parentId);
+  const roots = db.competencyModels.filter((c) => !c.parentIds?.length);
 
   // Sort roots by creation order (using id timestamp if available)
   roots.sort((a, b) => {
@@ -81,7 +99,7 @@ export function renumberRootCompetencies(db) {
 }
 
 function assignLevels(parentId, level, all) {
-  const children = all.filter((c) => c.parentId === parentId);
+  const children = all.filter((c) => c.parentIds?.includes(parentId));
 
   children.forEach((child) => {
     child.levelLabel = `Level ${level}`;
