@@ -84,7 +84,9 @@ export default function EvidenceModelBuilder({ notify }) {
 
   const addObservation = (id, text) => {
     if (!text.trim()) return;
-    updateModel(id, (m) => ({ observations: [...m.observations, text] }));
+    updateModel(id, (m) => ({
+      observations: [...m.observations, { id: uuidv4(), text }]
+    }));
     notify("Evidence Rule / Observation added.");
   };
 
@@ -94,6 +96,39 @@ export default function EvidenceModelBuilder({ notify }) {
     }));
     notify("Evidence Rule / Observation removed.");
   };
+
+  // ✅ Rubric helpers moved inside component
+  const addRubric = (modelId, observationId) => {
+    updateModel(modelId, (m) => ({
+      rubrics: [
+        ...(m.rubrics || []),
+        { id: uuidv4(), observationId, levels: [] }
+      ]
+    }));
+    notify("Rubric added.");
+  };
+
+  const addRubricLevel = (modelId, rubricId, description) => {
+    updateModel(modelId, (m) => ({
+      rubrics: m.rubrics.map((r) =>
+        r.id === rubricId
+          ? {
+              ...r,
+              levels: [...r.levels, { level: r.levels.length + 1, description }]
+            }
+          : r
+      )
+    }));
+    notify("Rubric level added.");
+  };
+
+  const removeRubric = (modelId, rubricId) => {
+    updateModel(modelId, (m) => ({
+      rubrics: m.rubrics.filter((r) => r.id !== rubricId)
+    }));
+    notify("Rubric removed.");
+  };
+
 
   const updateRule = (id, rule) => {
     updateModel(id, () => ({ scoringRule: rule }));
@@ -197,23 +232,68 @@ export default function EvidenceModelBuilder({ notify }) {
 
               {/* Observations */}
               <div>
-                <h5 className="font-semibold">Evidence Rules / Observations</h5>
+                <h5 className="font-semibold">Evidence Rules (or) Observations</h5>
                 <ul className="text-sm ml-4 space-y-1">
-                  {m.observations.map((o, i) => (
-                    <li key={i} className="flex justify-between items-center">
-                      <span>{o}</span>
-                      {editingId === m.id && (
-                        <button
-                          className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                          onClick={() => removeObservation(m.id, i)}
-                        >
-                          −
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                  {m.observations.map((o, i) => {
+                    const rubric = m.rubrics.find((r) => r.observationId === o.id);
 
+                    return (
+                      <li key={o.id || i} className="space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span>{o.text}</span>
+                          {editingId === m.id && (
+                            <div className="flex gap-2">
+                              <button
+                                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+                                onClick={() => removeObservation(m.id, i)}
+                              >
+                                −
+                              </button>
+                              {!rubric && (
+                                <button
+                                  className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
+                                  onClick={() => addRubric(m.id, o.id)}
+                                >
+                                  Add Rubric
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Rubric block */}
+                        {rubric && (
+                          <div className="ml-6 border p-2 rounded bg-white">
+                            <div className="flex justify-between items-center mb-1">
+                              <h6 className="font-medium text-sm">Rubric</h6>
+                              {editingId === m.id && (
+                                <button
+                                  onClick={() => removeRubric(m.id, rubric.id)}
+                                  className="px-2 py-0.5 bg-red-400 text-white rounded text-xs"
+                                >
+                                  Remove Rubric
+                                </button>
+                              )}
+                            </div>
+                            <ul className="text-xs ml-2 space-y-1">
+                              {rubric.levels.map((lvl, idx) => (
+                                <li key={idx}>
+                                  <b>Level {lvl.level}:</b> {lvl.description}
+                                </li>
+                              ))}
+                            </ul>
+
+                            {editingId === m.id && (
+                              <RubricLevelInput
+                                onAdd={(desc) => addRubricLevel(m.id, rubric.id, desc)}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
                 {editingId === m.id && (
                   <ObservationInput onAdd={(txt) => addObservation(m.id, txt)} />
                 )}
@@ -221,7 +301,7 @@ export default function EvidenceModelBuilder({ notify }) {
 
               {/* Scoring Rule */}
               <div>
-                <h5 className="font-semibold">Statistical Model / Scoring Rule</h5>
+                <h5 className="font-semibold">Statistical Model (or) Scoring Rule</h5>
                   <select
                     className="border p-2 rounded"
                     value={m.scoringRule}
@@ -309,6 +389,31 @@ function ObservationInput({ onAdd }) {
       <button
         className="px-2 bg-green-500 text-white text-xs rounded"
         onClick={() => {
+          onAdd(val);
+          setVal("");
+        }}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+// New helpers for rubrics
+function RubricLevelInput({ onAdd }) {
+  const [val, setVal] = useState("");
+  return (
+    <div className="flex gap-2 mt-1">
+      <input
+        className="border p-1 flex-1 text-xs"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        placeholder="New rubric level description"
+      />
+      <button
+        className="px-2 bg-green-500 text-white text-xs rounded"
+        onClick={() => {
+          if (!val.trim()) return;
           onAdd(val);
           setVal("");
         }}
