@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 // import { loadDB, saveDB } from "../api/mockApi";
-import { loadDB, saveDB, exportDB, importDB, clearDB } from "../utils/db";
+import { loadDB, saveDB, renumberRootTasks, exportDB, importDB, clearDB } from "../utils/db";
 
 import Card from "./Card";
 import Modal from "./Modal";
@@ -26,15 +26,27 @@ export default function TasksManager({ notify, refresh }) {
   };
 
   const addTask = () => {
-    if (!title.trim() || !selectedItems.length || !modelId)
-      return notify("Fill all fields");
+    if (!title.trim()) {
+      return notify("Enter a task title");
+    }
+    if (!selectedItems.length) {
+      return notify("Add question items");
+    }
+    if (!modelId) {
+      return notify("Select an evidence model");
+    }
     const db = loadDB();
     db.tasks.push({
       id: `t${Date.now()}`,
       title,
       itemIds: selectedItems,
       evidenceModelId: modelId,
+      modelLabel: null, // will be filled below
     });
+
+    // ✅ ensure numbering
+    renumberRootTasks(db);
+
     saveDB(db);
     setTasks(db.tasks);
     setTitle("");
@@ -96,7 +108,9 @@ export default function TasksManager({ notify, refresh }) {
       <ul className="mt-2 text-sm space-y-1">
         {tasks.map((t) => (
           <li key={t.id} className="flex justify-between items-center">
-            <span>{t.title}</span>
+            <span>
+              {t.modelLabel ? `${t.modelLabel}: ` : ""}{t.title}
+            </span>
             <button
               onClick={() => setModal({ open: true, id: t.id })}
               className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
@@ -106,6 +120,7 @@ export default function TasksManager({ notify, refresh }) {
           </li>
         ))}
       </ul>
+
       <Modal
         isOpen={modal.open}
         onClose={() => setModal({ open: false, id: null })}

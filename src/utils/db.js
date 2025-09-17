@@ -39,6 +39,14 @@ export function loadDB() {
     }
   });
 
+  // ✅ Migration: assign tmX to tasks missing modelLabel
+  let tmCount = 1;
+  db.tasks.forEach((t) => {
+    if (!t.modelLabel) {
+      t.modelLabel = `tm${tmCount++}`;
+    }
+  });
+
   return db;
 }
 
@@ -166,3 +174,20 @@ export function buildCompetencyOptions(nodes, parentId = null, level = 0) {
 
   return options;
 }
+
+export function renumberRootTasks(db) {
+  if (!db.tasks) db.tasks = [];
+
+  // Sort tasks by creation order
+  db.tasks.sort((a, b) => {
+    const ta = parseInt(a.id?.replace(/\D/g, ""), 10) || 0;
+    const tb = parseInt(b.id?.replace(/\D/g, ""), 10) || 0;
+    return ta - tb;
+  });
+
+  // Assign tm1, tm2...
+  db.tasks.forEach((task, idx) => {
+    task.modelLabel = `tm${idx + 1}`;
+  });
+}
+

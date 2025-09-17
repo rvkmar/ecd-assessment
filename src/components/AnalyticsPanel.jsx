@@ -54,10 +54,22 @@ export default function AnalyticsPanel() {
     });
 
     // Transform into chart data
-    return Object.entries(scores).map(([competency, { total, count }]) => ({
-      competency,
-      avgScore: count > 0 ? total / count : 0,
-    }));
+    return Object.entries(scores)
+      .map(([competencyId, { total, count }]) => {
+        const compObj = competencyModels.find((c) => c.id === competencyId);
+        if (!compObj) return null; // 🚫 skip if competency not found
+
+        const label =
+          compObj.modelLabel
+            ? `${compObj.modelLabel}: ${compObj.name}`
+            : compObj.name;
+
+        return {
+          competency: label,
+          avgScore: count > 0 ? total / count : 0,
+        };
+      })
+      .filter(Boolean); // 🚫 remove null entries
   }, [db]);
 
   return (
