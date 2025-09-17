@@ -97,7 +97,7 @@ export default function EvidenceModelBuilder({ notify }) {
 
   const updateRule = (id, rule) => {
     updateModel(id, () => ({ scoringRule: rule }));
-    notify("Scoring rule updated.");
+    notify("Statistical Model / Scoring rule updated.");
   };
 
   return (
@@ -221,7 +221,7 @@ export default function EvidenceModelBuilder({ notify }) {
 
               {/* Scoring Rule */}
               <div>
-                <h5 className="font-semibold">Scoring Rule</h5>
+                <h5 className="font-semibold">Statistical Model / Scoring Rule</h5>
                   <select
                     className="border p-2 rounded"
                     value={m.scoringRule}

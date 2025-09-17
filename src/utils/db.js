@@ -10,7 +10,6 @@ export function loadDB() {
   // Migration: assign cmX to roots missing modelLabel
   let cmCount = 1;
   db.competencyModels
-    // .filter((c) => !c.parentIds?.length) // ✅ root check
     .filter((c) => !c.parentId)
     .forEach((c) => {
       if (!c.modelLabel) {
@@ -30,12 +29,15 @@ export function loadDB() {
 
   // Migration: assign emX to evidence model roots
   let emCount = 1;
-  db.evidenceModels
-    .forEach((e) => {
-      if (!e.modelLabel) {
-        e.modelLabel = `em${emCount++}`;
-      }
-    });
+  db.evidenceModels.forEach((e) => {
+    if (!e.modelLabel) {
+      e.modelLabel = `em${emCount++}`;
+    }
+    // ✅ Ensure rubrics array exists
+    if (!e.rubrics) {
+      e.rubrics = [];
+    }
+  });
 
   return db;
 }
@@ -131,6 +133,11 @@ export function renumberRootEvidenceModels(db) {
       if (!isNaN(num) && num >= counter) {
         counter = num + 1;
       }
+    }
+
+    // ✅ Ensure rubrics array always present
+    if (!m.rubrics) {
+      m.rubrics = [];
     }
   });
 }

@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: ecd-assessment
     ports:
-      - "6000:80"
+      - "6000:80"  # Original port mapping in LightSail
+      # - "8081:80" # localhost:8081 to container's port 80
     restart: always
     # restart: unless-stopped
