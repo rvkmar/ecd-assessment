@@ -7,6 +7,6 @@ services:
       dockerfile: Dockerfile
     container_name: ecd-assessment
     ports:
-      - "8081:80"
+      - "6000:80"
     restart: always
     # restart: unless-stopped
