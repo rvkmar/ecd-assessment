@@ -6,6 +6,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: ecd-assessment
-    ports:
-      - "8081:80"
     restart: unless-stopped
+    networks:
+      - caddy_net
+
+networks:
+  caddy_net:
+    external: true
