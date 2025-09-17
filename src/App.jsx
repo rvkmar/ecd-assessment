@@ -67,7 +67,7 @@ export default function App() {
                 Export
               </button>
 
-              <label className="px-3 py-1 bg-gray-500 text-white rounded cursor-pointer">
+              {/* <label className="px-3 py-1 bg-gray-500 text-white rounded cursor-pointer">
                 Import
                 <input
                   type="file"
@@ -79,7 +79,7 @@ export default function App() {
                   // }}
                   onChange={handleImport}
                 />
-              </label>
+              </label> */}
             </>
           )}
         </div>
