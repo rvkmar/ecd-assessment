@@ -59,7 +59,11 @@ export default function TasksManager({ notify, refresh }) {
   const removeTask = (id) => {
     const db = loadDB();
     db.tasks = db.tasks.filter((t) => t.id !== id);
-    db.sessions = db.sessions.filter((s) => s.taskId !== id);
+    // db.sessions = db.sessions.filter((s) => s.taskId !== id);
+    // Remove sessions safely
+    if (db.sessions && db.sessions.length) {
+      db.sessions = db.sessions.filter((s) => s.taskId !== id);
+    }
     saveDB(db);
     setTasks(db.tasks);
     notify("Task removed.");
@@ -125,8 +129,11 @@ export default function TasksManager({ notify, refresh }) {
         isOpen={modal.open}
         onClose={() => setModal({ open: false, id: null })}
         onConfirm={() => {
-          removeTask(modal.id);
-          setModal({ open: false, id: null });
+          // removeTask(modal.id);
+          // setModal({ open: false, id: null });
+          const idToRemove = modal.id;
+          setModal({ open: false, id: null });   // ✅ close immediately
+          removeTask(idToRemove);  
         }}
         title="Confirm Delete"
         message="Remove this task? This will also remove linked sessions."

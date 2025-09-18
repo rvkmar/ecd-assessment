@@ -14,20 +14,20 @@ import {
 export default function AnalyticsPanel() {
   const db = loadDB();
 
-  // Flatten sessions, link back to tasks → evidence models → constructs → competencies
   const data = useMemo(() => {
     const sessions = db.sessions || [];
     const tasks = db.tasks || [];
     const evidenceModels = db.evidenceModels || [];
     const competencyModels = db.competencyModels || [];
 
-    // Collect all competencies
-    const allCompetencies = competencyModels.flatMap((cm) => cm.competencies);
-
-    // Score accumulator per competency
+    // Score accumulators
     const scores = {};
-    allCompetencies.forEach((c) => {
-      scores[c] = { total: 0, count: 0 };
+    const rubricScores = {};
+
+    // ✅ Initialize all competencies
+    competencyModels.forEach((c) => {
+      scores[c.id] = { total: 0, count: 0 };
+      rubricScores[c.id] = { total: 0, count: 0 };
     });
 
     sessions.forEach((session) => {
@@ -37,19 +37,27 @@ export default function AnalyticsPanel() {
       const em = evidenceModels.find((m) => m.id === task.evidenceModelId);
       if (!em) return;
 
-      // If constructs are linked to competencies, push scores
       em.constructs.forEach((construct) => {
         if (!construct.linkedCompetencyId) return;
 
-        // Find this construct’s score in session
-        const scoreObj = session.scores?.find((s) => s.constructId === construct.id);
+        const scoreObj = session.scores?.find(
+          (s) => s.constructId === construct.id
+        );
         if (!scoreObj) return;
 
-        const comp = construct.linkedCompetencyId;
-        if (!scores[comp]) scores[comp] = { total: 0, count: 0 };
+        const compId = construct.linkedCompetencyId;
+        if (!scores[compId]) scores[compId] = { total: 0, count: 0 };
 
-        scores[comp].total += scoreObj.value;
-        scores[comp].count += 1;
+        scores[compId].total += scoreObj.value;
+        scores[compId].count += 1;
+
+        // ✅ Handle rubric scores separately
+        if (scoreObj.isRubric) {
+          if (!rubricScores[compId])
+            rubricScores[compId] = { total: 0, count: 0 };
+          rubricScores[compId].total += scoreObj.value;
+          rubricScores[compId].count += 1;
+        }
       });
     });
 
@@ -57,19 +65,22 @@ export default function AnalyticsPanel() {
     return Object.entries(scores)
       .map(([competencyId, { total, count }]) => {
         const compObj = competencyModels.find((c) => c.id === competencyId);
-        if (!compObj) return null; // 🚫 skip if competency not found
+        if (!compObj) return null;
 
-        const label =
-          compObj.modelLabel
-            ? `${compObj.modelLabel}: ${compObj.name}`
-            : compObj.name;
+        const label = compObj.modelLabel
+          ? `${compObj.modelLabel}: ${compObj.name}`
+          : compObj.name;
+
+        const rubricData = rubricScores[competencyId] || { total: 0, count: 0 };
 
         return {
           competency: label,
           avgScore: count > 0 ? total / count : 0,
+          rubricAvg:
+            rubricData.count > 0 ? rubricData.total / rubricData.count : 0,
         };
       })
-      .filter(Boolean); // 🚫 remove null entries
+      .filter(Boolean);
   }, [db]);
 
   return (
@@ -78,12 +89,16 @@ export default function AnalyticsPanel() {
         <p className="text-sm text-gray-600">No data available yet.</p>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <BarChart
+            data={data}
+            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          >
             <XAxis dataKey="competency" />
             <YAxis />
             <Tooltip />
             <Legend />
             <Bar dataKey="avgScore" fill="#8884d8" name="Average Score" />
+            <Bar dataKey="rubricAvg" fill="#82ca9d" name="Rubric Average" />
           </BarChart>
         </ResponsiveContainer>
       )}

@@ -1,6 +1,13 @@
 import React from "react";
 
-export default function Modal({ isOpen, onClose, onConfirm, title, message }) {
+export default function Modal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmClass = "bg-blue-500 hover:bg-blue-600 text-white", // ✅ default
+}) {
   if (!isOpen) return null;
 
   const handleConfirm = () => {
@@ -16,13 +23,13 @@ export default function Modal({ isOpen, onClose, onConfirm, title, message }) {
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1 bg-gray-300 rounded"
+            className="px-3 py-1 bg-gray-300 hover:bg-gray-400 rounded"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
-            className="px-3 py-1 bg-red-500 text-white rounded"
+            className={`px-3 py-1 rounded ${confirmClass}`}
           >
             Confirm
           </button>

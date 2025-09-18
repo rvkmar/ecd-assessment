@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import Card from "./Card";
 import Modal from "./Modal";
-import { loadDB, saveDB, exportDB, importDB, clearDB } from "../utils/db";
-
+import { loadDB, saveDB } from "../utils/db";
 
 export default function ItemBank({ notify }) {
   const [items, setItems] = useState(loadDB().items);
@@ -11,6 +10,7 @@ export default function ItemBank({ notify }) {
     text: "",
     correct: "",
     choices: [],
+    observationId: "", // 👈 NEW for rubric
   });
   const [editItemId, setEditItemId] = useState(null);
   const [modal, setModal] = useState({ open: false, id: null });
@@ -30,7 +30,7 @@ export default function ItemBank({ notify }) {
         text: draft.text,
         correct: draft.correct,
       };
-    } else {
+    } else if (draft.type === "mcq") {
       if (draft.choices.length < 2) return notify("Add at least 2 choices");
       if (!draft.correct) return notify("Select a correct choice");
       newItem = {
@@ -39,6 +39,15 @@ export default function ItemBank({ notify }) {
         text: draft.text,
         choices: draft.choices,
         correct: draft.correct,
+      };
+    } else if (draft.type === "rubric") {
+      if (!draft.observationId)
+        return notify("Select an observation to link rubric");
+      newItem = {
+        id: editItemId || `i${Date.now()}`,
+        type: "rubric",
+        text: draft.text,
+        observationId: draft.observationId, // 👈 store link
       };
     }
 
@@ -51,7 +60,7 @@ export default function ItemBank({ notify }) {
     }
     saveDB(db);
     setItems(db.items);
-    setDraft({ type: "simple", text: "", correct: "", choices: [] });
+    setDraft({ type: "simple", text: "", correct: "", choices: [], observationId: "" });
     setEditItemId(null);
   };
 
@@ -87,16 +96,28 @@ export default function ItemBank({ notify }) {
     });
   };
 
+  // ✅ Build observation list from Evidence Models
+  const observationOptions = loadDB()
+    .evidenceModels.flatMap((em) =>
+      em.observations.map((o) => ({
+        id: o.id || `${em.id}-obs-${o}`,
+        label: `${em.modelLabel || em.name}: ${o.text || o}`,
+      }))
+    );
+
   return (
     <Card title="Item Bank">
       <div className="space-y-2">
         <select
           className="border p-2 w-full"
           value={draft.type}
-          onChange={(e) => setDraft({ ...draft, type: e.target.value })}
+          onChange={(e) =>
+            setDraft({ ...draft, type: e.target.value, correct: "", choices: [], observationId: "" })
+          }
         >
           <option value="simple">Constructed Response Question</option>
           <option value="mcq">Multiple Choice Question</option>
+          <option value="rubric">Rubric-based Observation</option>
         </select>
 
         <input
@@ -113,7 +134,7 @@ export default function ItemBank({ notify }) {
             onChange={(e) => setDraft({ ...draft, correct: e.target.value })}
             placeholder="Correct answer"
           />
-        ) : (
+        ) : draft.type === "mcq" ? (
           <div>
             <p className="text-sm font-medium">Choices:</p>
             {draft.choices.map((c) => (
@@ -145,7 +166,25 @@ export default function ItemBank({ notify }) {
               + Add Choice
             </button>
           </div>
-        )}
+        ) : draft.type === "rubric" ? (
+          <div>
+            <p className="text-sm font-medium">Link to Observation:</p>
+            <select
+              className="border p-2 w-full"
+              value={draft.observationId}
+              onChange={(e) =>
+                setDraft({ ...draft, observationId: e.target.value })
+              }
+            >
+              <option value="">Select Observation</option>
+              {observationOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         <button
           onClick={addOrUpdateItem}
@@ -156,34 +195,50 @@ export default function ItemBank({ notify }) {
       </div>
 
       <ul className="mt-2 text-sm space-y-1">
-        {items.map((i) => (
-          <li key={i.id} className="flex justify-between items-center gap-2">
-            <span>
-              {i.text}{" "}
-              {i.type === "simple"
-                ? `(Answer: ${i.correct})`
-                : `(MCQ: ${i.choices.length} choices)`}
-            </span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => {
-                  setDraft({ ...i });
-                  setEditItemId(i.id);
-                }}
-                className="px-2 py-0.5 bg-yellow-500 text-white rounded text-xs"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => setModal({ open: true, id: i.id })}
-                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-              >
-                Remove
-              </button>
-            </div>
-          </li>
-        ))}
+        {items.map((i) => {
+          // Lookup: find linked observation text if rubric item
+          let extraLabel = "";
+          if (i.type === "rubric" && i.observationId) {
+            const db = loadDB();
+            const model = db.evidenceModels.find((m) =>
+              m.observations.some((o) => o.id === i.observationId)
+            );
+            const obs = model?.observations.find((o) => o.id === i.observationId);
+            if (obs) extraLabel = ` (Rubric → ${obs.text})`;
+          }
+
+          return (
+            <li key={i.id} className="flex justify-between items-center gap-2">
+              <span>
+                {i.text}
+                {i.type === "simple"
+                  ? ` (Answer: ${i.correct})`
+                  : i.type === "mcq"
+                  ? ` (MCQ: ${i.choices.length} choices)`
+                  : extraLabel}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    setDraft({ ...i });
+                    setEditItemId(i.id);
+                  }}
+                  className="px-2 py-0.5 bg-yellow-500 text-white rounded text-xs"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setModal({ open: true, id: i.id })}
+                  className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+                >
+                  Remove
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
+
 
       <Modal
         isOpen={modal.open}
