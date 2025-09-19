@@ -125,7 +125,7 @@ export default function TasksManager({ notify, refresh }) {
         value={modelId}
         onChange={(e) => setModelId(e.target.value)}
       >
-        <option value="">Select model</option>
+        <option value="">Select Evidence Model</option>
         {models.map((m) => (
           <option key={m.id} value={m.id}>{m.name}</option>
         ))}
