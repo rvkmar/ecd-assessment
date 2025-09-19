@@ -4,83 +4,10 @@ import { loadDB, saveDB, renumberRootCompetencies } from "../utils/db";
 import Modal from "./Modal";
 import Card from "./Card";
 
-// competency model graph view
-import ReactFlow, { Background } from "reactflow";
-import "reactflow/dist/style.css";
-import dagre from "dagre";
+import CompetencyLinker from "./CompetencyLinker";
+import CompetencyOverview from "./CompetencyOverview";
 
-const nodeWidth = 60;
-const nodeHeight = 25;
-
-function getLayoutedElements(competencies) {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB" }); // Top-to-Bottom layout
-
-  // add nodes
-  competencies.forEach((c) => {
-    g.setNode(c.id, { width: nodeWidth, height: nodeHeight });
-  });
-
-  // add edges
-  competencies
-    .filter((c) => c.parentId)
-    .forEach((c) => {
-      g.setEdge(c.parentId, c.id);
-    });
-
-  dagre.layout(g);
-
-    const nodes = competencies.map((c) => {
-    const pos = g.node(c.id);
-    return {
-      id: c.id,
-      data: { label: c.name },
-      position: { x: pos.x - nodeWidth / 2, y: pos.y - nodeHeight / 2 },
-      style: {
-        background: "#10b981", // green circle
-        color: "white",
-        borderRadius: "50%",
-        width: nodeWidth,
-        height: nodeWidth,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        fontSize: "8px",   // 👈 smaller font
-        textAlign: "center",
-        lineHeight: "1.1",
-        padding: "2px",
-      },
-    };
-  });
-
-
-  const edges = competencies
-    .filter((c) => c.parentId)
-    .map((c) => ({
-      id: `e${c.parentId}-${c.id}`,
-      source: c.parentId,
-      target: c.id,
-      animated: true,
-      style: { stroke: "#10b981", strokeWidth: 2 },
-    }));
-
-  return { nodes, edges };
-}
-
-function CompetencyGraph({ competencies }) {
-  const { nodes, edges } = getLayoutedElements(competencies);
-
-  return (
-    <div style={{ width: "100%", height: 500 }} className="border rounded">
-      <ReactFlow nodes={nodes} edges={edges} fitView>
-        <Background />
-      </ReactFlow>
-    </div>
-  );
-}
-
-function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0, rootIndex = 1 }) {
+function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0 }) {
   const [expanded, setExpanded] = useState({});
   const children = nodes.filter((n) => n.parentId === parentId);
 
@@ -88,7 +15,7 @@ function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0, r
 
   return (
     <ul className="pl-8 border-l-2 border-gray-300">
-      {children.map((node, idx) => {
+      {children.map((node) => {
         const labelPrefix =
           level === 0 ? `${node.modelLabel || "cm?"}:` : `Level ${level}:`;
 
@@ -161,9 +88,7 @@ function getCompetencyOptions(nodes, parentId = null, level = 0) {
       label: `${"— ".repeat(level)}${labelPrefix} ${c.name}`,
     });
 
-    options = options.concat(
-      getCompetencyOptions(nodes, c.id, level + 1)
-    );
+    options = options.concat(getCompetencyOptions(nodes, c.id, level + 1));
   });
 
   return options;
@@ -176,7 +101,8 @@ export default function CompetencyModels({ notify }) {
   const [draftParentId, setDraftParentId] = useState("");
   const [editId, setEditId] = useState(null);
   const [modal, setModal] = useState({ open: false, id: null });
-  const [showGraph, setShowGraph] = useState(false); // 👈 Toggle disabled by default
+  const [showGraph, setShowGraph] = useState(false);
+  const [links, setLinks] = useState([]);
 
   const saveCompetency = () => {
     if (!draftName.trim()) return notify("Enter competency name");
@@ -195,7 +121,6 @@ export default function CompetencyModels({ notify }) {
       );
       notify("Competency updated.");
     } else {
-      // count existing root competencies
       const rootCount = db.competencyModels.filter((c) => !c.parentId).length;
       const modelLabel = draftParentId ? null : `cm${rootCount + 1}`;
 
@@ -204,7 +129,7 @@ export default function CompetencyModels({ notify }) {
         name: draftName,
         description: draftDescription,
         parentId: draftParentId || null,
-        modelLabel: null,
+        modelLabel: modelLabel,
       });
       notify("Competency added.");
     }
@@ -264,6 +189,13 @@ export default function CompetencyModels({ notify }) {
         </button>
       </div>
 
+      <div className="my-4">
+        <CompetencyLinker
+          competencies={competencies}
+          onLinksChange={(updatedLinks) => setLinks(updatedLinks)}
+        />
+      </div>
+
       {/* Toggle for graph */}
       <div className="flex items-right gap-3 mb-4">
         <span className="text-sm font-medium text-gray-700">Competency Overview</span>
@@ -281,7 +213,6 @@ export default function CompetencyModels({ notify }) {
             }`}
           />
         </button>
-
       </div>
 
       <div className={`grid ${showGraph ? "md:grid-cols-2" : "grid-cols-1"} gap-4`}>
@@ -302,8 +233,7 @@ export default function CompetencyModels({ notify }) {
         {/* Right: Graph for overview (conditionally rendered) */}
         {showGraph && (
           <div>
-            {/* <h3 className="font-semibold mb-2">Visual Overview</h3> */}
-            <CompetencyGraph competencies={competencies} />
+            <CompetencyOverview competencies={competencies} links={links} />
           </div>
         )}
       </div>
