@@ -106,7 +106,7 @@ export default function App() {
                   : "text-gray-500"
               }`}
              onClick={() => setTab("competency")}>
-              Competency Models
+              Competencies
             </button>
             <button
               className={`pb-2 ${
@@ -116,7 +116,7 @@ export default function App() {
               }`}
               onClick={() => setTab("models")}
             >
-              Evidence Models
+              Evidences
             </button>
             <button
               className={`pb-2 ${
@@ -126,7 +126,7 @@ export default function App() {
               }`}
               onClick={() => setTab("tasks")}
             >
-              Task Models
+              Tasks/Actions
             </button>
             <button
               className={`pb-2 ${
