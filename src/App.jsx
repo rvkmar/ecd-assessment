@@ -47,7 +47,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 p-6 space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-blue-600">Assessment</h1>
-        <h3 className="text-lg font-semibold">v0.5.1</h3>
+        <h3 className="text-lg font-semibold">v0.5.2</h3>
         <p className="italic text-gray-600">A prototype by Ravikumar Rajabhather, Lecturer, DIET Chennai</p>
         <div className="flex items-center gap-2">
           <select
