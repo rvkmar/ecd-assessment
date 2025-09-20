@@ -6,6 +6,7 @@ const CompetencyLinker = ({ competencies = [], onLinksChange }) => {
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
   const [modalIndex, setModalIndex] = useState(null);
+  const [showLinker, setShowLinker] = useState(false);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -54,11 +55,9 @@ const CompetencyLinker = ({ competencies = [], onLinksChange }) => {
 
   const isLinkDisabled = !source || !destination || source === destination;
 
-  // Build label consistently using the modelLabel of the root ancestor
   const buildLabel = (c) => {
     if (!c) return "";
 
-    // Walk up ancestors to determine depth and find root
     let depth = 0;
     let current = c;
     let root = c;
@@ -81,45 +80,65 @@ const CompetencyLinker = ({ competencies = [], onLinksChange }) => {
 
   return (
     <div className="competency-linker" style={{ marginTop: "1rem", padding: "1rem", border: "1px solid #ccc", borderRadius: "8px" }}>
-      <h3 className="font-semibold">Crosslink Competencies</h3>
-
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-        <select value={source} onChange={(e) => setSource(e.target.value)}>
-          <option value="">Select Source</option>
-          {competencies.map((c) => (
-            <option key={c.id} value={c.id}>{formatLabel(c)}</option>
-          ))}
-        </select>
-
-        <select value={destination} onChange={(e) => setDestination(e.target.value)}>
-          <option value="">Select Destination</option>
-          {competencies.map((c) => (
-            <option key={c.id} value={c.id}>{formatLabel(c)}</option>
-          ))}
-        </select>
-
-        <button onClick={handleLink} disabled={isLinkDisabled} className="px-3 py-1 bg-blue-500 text-white rounded">
-          Crosslink Competency
+      <div className="flex items-right gap-3 mb-4">
+        <span className="text-sm font-medium text-gray-700">Crosslink Competencies</span>
+        <button
+          type="button"
+          onClick={() => setShowLinker((prev) => !prev)}
+          disabled={competencies.length === 0}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            showLinker ? "bg-green-500" : "bg-gray-300"
+          } ${competencies.length === 0 ? "opacity-40 cursor-not-allowed" : ""}`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              showLinker ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
         </button>
       </div>
 
-      <div className="linked-competencies">
-        <h4>Crosslinked Competencies</h4>
-        <ul>
-          {links.map((l, idx) => {
-            const src = competencies.find((c) => c.id === l.sourceId);
-            const dest = competencies.find((c) => c.id === l.destId);
-            return (
-              <li key={idx} className="flex items-center gap-2">
-                {formatLabel(src)} → {formatLabel(dest)}
-                <button onClick={() => setModalIndex(idx)} className="text-xs bg-red-500 text-white px-2 py-0.5 rounded">
-                  Remove
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {showLinker && (
+        <>
+          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+            <select value={source} onChange={(e) => setSource(e.target.value)}>
+              <option value="">Select Source</option>
+              {competencies.map((c) => (
+                <option key={c.id} value={c.id}>{formatLabel(c)}</option>
+              ))}
+            </select>
+
+            <select value={destination} onChange={(e) => setDestination(e.target.value)}>
+              <option value="">Select Destination</option>
+              {competencies.map((c) => (
+                <option key={c.id} value={c.id}>{formatLabel(c)}</option>
+              ))}
+            </select>
+
+            <button onClick={handleLink} disabled={isLinkDisabled} className="px-3 py-1 bg-blue-500 text-white rounded">
+              Crosslink Competency
+            </button>
+          </div>
+
+          <div className="linked-competencies">
+            <h4>Crosslinked Competencies</h4>
+            <ul>
+              {links.map((l, idx) => {
+                const src = competencies.find((c) => c.id === l.sourceId);
+                const dest = competencies.find((c) => c.id === l.destId);
+                return (
+                  <li key={idx} className="flex items-center gap-2">
+                    {formatLabel(src)} → {formatLabel(dest)}
+                    <button onClick={() => setModalIndex(idx)} className="text-xs bg-red-500 text-white px-2 py-0.5 rounded">
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </>
+      )}
 
       {modalIndex !== null && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
