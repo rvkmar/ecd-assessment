@@ -22,7 +22,6 @@ function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0 })
         return (
           <li key={node.id} className="mb-1">
             <div className="flex items-center gap-2">
-              {/* Expand/Collapse */}
               {nodes.some((n) => n.parentId === node.id) && (
                 <button
                   className="text-xs bg-gray-200 px-1 rounded"
@@ -37,12 +36,10 @@ function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0 })
                 </button>
               )}
 
-              {/* Competency name with prefix */}
               <span className="font-medium">
                 {labelPrefix} {node.name}
               </span>
 
-              {/* Actions */}
               <button
                 onClick={() => onEdit(node)}
                 className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded"
@@ -57,7 +54,6 @@ function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0 })
               </button>
             </div>
 
-            {/* Children */}
             {expanded[node.id] && (
               <CompetencyTree
                 nodes={nodes}
@@ -74,7 +70,6 @@ function CompetencyTree({ nodes, parentId = null, onEdit, onRemove, level = 0 })
   );
 }
 
-/* --- Dropdown helper --- */
 function getCompetencyOptions(nodes, parentId = null, level = 0) {
   const children = nodes.filter((n) => n.parentId === parentId);
   let options = [];
@@ -92,6 +87,16 @@ function getCompetencyOptions(nodes, parentId = null, level = 0) {
   });
 
   return options;
+}
+
+// Utility to recursively collect all descendant IDs
+function getAllDescendantIds(nodes, parentId) {
+  const children = nodes.filter((n) => n.parentId === parentId);
+  let ids = children.map((c) => c.id);
+  children.forEach((child) => {
+    ids = ids.concat(getAllDescendantIds(nodes, child.id));
+  });
+  return ids;
 }
 
 export default function CompetencyModels({ notify }) {
@@ -144,16 +149,21 @@ export default function CompetencyModels({ notify }) {
 
   const removeCompetency = (id) => {
     const db = loadDB();
-    db.competencyModels = db.competencyModels.filter((c) => c.id !== id);
+
+    // Collect this competency + all descendants
+    const descendantIds = getAllDescendantIds(db.competencyModels, id);
+    const idsToRemove = [id, ...descendantIds];
+
+    db.competencyModels = db.competencyModels.filter((c) => !idsToRemove.includes(c.id));
+
     renumberRootCompetencies(db);
     saveDB(db);
     setCompetencies(db.competencyModels);
-    notify("Competency removed.");
+    notify("Competency and its children removed.");
   };
 
   return (
     <Card title="Competency Models">
-      {/* Form */}
       <div className="space-y-2 mb-4">
         <input
           className="border p-2 w-full"
@@ -196,7 +206,6 @@ export default function CompetencyModels({ notify }) {
         />
       </div>
 
-      {/* Toggle for graph */}
       <div className="flex items-right gap-3 mb-4">
         <span className="text-sm font-medium text-gray-700">Competency Overview</span>
         <button
@@ -216,7 +225,6 @@ export default function CompetencyModels({ notify }) {
       </div>
 
       <div className={`grid ${showGraph ? "md:grid-cols-2" : "grid-cols-1"} gap-4`}>
-        {/* Left: Tree for editing */}
         <div>
           <CompetencyTree
             nodes={competencies}
@@ -230,7 +238,6 @@ export default function CompetencyModels({ notify }) {
           />
         </div>
 
-        {/* Right: Graph for overview (conditionally rendered) */}
         {showGraph && (
           <div>
             <CompetencyOverview competencies={competencies} links={links} />
@@ -238,7 +245,6 @@ export default function CompetencyModels({ notify }) {
         )}
       </div>
 
-      {/* Confirmation Modal */}
       <Modal
         isOpen={modal.open}
         onClose={() => setModal({ open: false, id: null })}
