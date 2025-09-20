@@ -1,82 +1,98 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 
-const CPTEditor = ({ node, updateCPT }) => {
-  const [cpt, setCpt] = useState(node.cpt || {});
+export default function CPTEditor({ node, updateCPT }) {
+  if (!node?.cpt) return null;
 
-  // Helper: generate all combinations of parent states
-  const generateParentCombinations = () => {
-    if (!node.parents || node.parents.length === 0) return [[]];
-    // For simplicity, assume parent states are {Mastered, NotMastered}
-    const states = ["Mastered", "NotMastered"];
-    const combine = (parents, prefix = []) => {
-      if (parents.length === 0) return [prefix];
-      return states.flatMap(s =>
-        combine(parents.slice(1), [...prefix, `${parents[0]}=${s}`])
-      );
-    };
-    return combine(node.parents);
+  const { states = ["Mastered", "NotMastered"], entries = [] } = node.cpt;
+
+  const handleProbChange = (rowIdx, stateIdx, value) => {
+    if (node.type === "evidence") return; // read-only for evidence
+    const newEntries = [...entries];
+    const probs = [...newEntries[rowIdx].probs];
+    probs[stateIdx] = parseFloat(value) || 0;
+    newEntries[rowIdx] = { ...newEntries[rowIdx], probs };
+    updateCPT({ states, entries: newEntries });
   };
 
-  const parentCombinations = generateParentCombinations();
-  const nodeStates = ["Mastered", "NotMastered"]; // default, can be made dynamic later
-
-  // Update CPT cell
-  const handleChange = (rowKey, state, value) => {
-    const num = parseFloat(value);
-    const newCpt = {
-      ...cpt,
-      [rowKey]: {
-        ...(cpt[rowKey] || {}),
-        [state]: isNaN(num) ? 0 : num
-      }
-    };
-    setCpt(newCpt);
-    updateCPT(newCpt);
+  const normalizeRow = (rowIdx) => {
+    if (node.type === "evidence") return; // disable for evidence
+    const newEntries = [...entries];
+    const probs = [...newEntries[rowIdx].probs];
+    const total = probs.reduce((a, b) => a + b, 0);
+    if (total > 0) {
+      const normalized = probs.map(p => p / total);
+      newEntries[rowIdx] = { ...newEntries[rowIdx], probs: normalized };
+      updateCPT({ states, entries: newEntries });
+    }
   };
 
-  // Validation: each row should sum to 1
-  const validateRow = (row) => {
-    const values = nodeStates.map(s => (cpt[row] && cpt[row][s]) || 0);
-    const sum = values.reduce((a, b) => a + b, 0);
-    return Math.abs(sum - 1.0) < 0.001;
+  // helper to regenerate CPT when node type is evidence
+  const regenerateIfEvidence = () => {
+    if (node.type === "evidence") {
+      const parentIds = node.parents || [];
+      const parentStates = parentIds.map(pid => node.parentMap?.[pid] || ["True", "False"]);
+      const cartesian = (arrays) => arrays.reduce((acc, curr) => acc.flatMap(a => curr.map(c => [...a, c])), [[]]);
+      const combos = cartesian(parentStates);
+      // Evidence node mirrors parent state assignments as its states
+      const mirroredStates = combos.map(combo => combo.join(", "));
+      const newEntries = combos.map(combo => ({
+        given: Object.fromEntries(parentIds.map((pid, i) => [pid, combo[i]])),
+        probs: [1]
+      }));
+      updateCPT({ states: mirroredStates, entries: newEntries });
+    }
   };
+
+  React.useEffect(() => {
+    regenerateIfEvidence();
+  }, [node.type, node.parents]);
 
   return (
-    <div className="cpt-editor">
-      <h4>CPT for {node.id}</h4>
-      <table border="1" cellPadding="4" style={{ borderCollapse: "collapse" }}>
+    <div className="mt-2">
+      <table className="min-w-full text-xs border">
         <thead>
           <tr>
-            <th>Parent States</th>
-            {nodeStates.map((s, i) => (
-              <th key={i}>{s}</th>
+            <th className="border px-2 py-1">Parent States</th>
+            {states.map((s, i) => (
+              <th key={i} className="border px-2 py-1">{s}</th>
             ))}
-            <th>Valid?</th>
+            <th className="border px-2 py-1">Valid?</th>
+            {node.type !== "evidence" && <th className="border px-2 py-1">Actions</th>}
           </tr>
         </thead>
         <tbody>
-          {parentCombinations.map((combo, idx) => {
-            const rowKey = combo.join(", ") || "Prior";
+          {entries.map((entry, rowIdx) => {
+            const total = entry.probs.reduce((a, b) => a + b, 0);
             return (
-              <tr key={idx}>
-                <td>{rowKey}</td>
-                {nodeStates.map((s, j) => (
-                  <td key={j}>
+              <tr key={rowIdx}>
+                <td className="border px-2 py-1">
+                  {Object.entries(entry.given).map(([k, v]) => `${k}=${v}`).join(", ") || "—"}
+                </td>
+                {states.map((s, stateIdx) => (
+                  <td key={stateIdx} className="border px-2 py-1">
                     <input
                       type="number"
                       step="0.01"
-                      min="0"
-                      max="1"
-                      value={(cpt[rowKey] && cpt[rowKey][s]) || ""}
-                      onChange={(e) =>
-                        handleChange(rowKey, s, e.target.value)
-                      }
+                      className="w-16 border p-1"
+                      value={entry.probs[stateIdx]}
+                      onChange={(e) => handleProbChange(rowIdx, stateIdx, e.target.value)}
+                      disabled={node.type === "evidence"}
                     />
                   </td>
                 ))}
-                <td style={{ color: validateRow(rowKey) ? "green" : "red" }}>
-                  {validateRow(rowKey) ? "✔" : "✘"}
+                <td className={`border px-2 py-1 ${Math.abs(total - 1) < 0.001 ? "text-green-600" : "text-red-600"}`}>
+                  {total.toFixed(2)}
                 </td>
+                {node.type !== "evidence" && (
+                  <td className="border px-2 py-1">
+                    <button
+                      className="px-2 py-0.5 bg-blue-500 text-white rounded text-xs"
+                      onClick={() => normalizeRow(rowIdx)}
+                    >
+                      Normalize
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -84,6 +100,4 @@ const CPTEditor = ({ node, updateCPT }) => {
       </table>
     </div>
   );
-};
-
-export default CPTEditor;
+}
