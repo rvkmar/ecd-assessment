@@ -54,11 +54,11 @@ const CompetencyLinker = ({ competencies = [], onLinksChange }) => {
 
   const isLinkDisabled = !source || !destination || source === destination;
 
-  // Build label like cm1:..., cm2:..., cm1:Level1:..., cm1:Level2:...
+  // Build label consistently using the modelLabel of the root ancestor
   const buildLabel = (c) => {
     if (!c) return "";
 
-    // Walk up to the root to determine depth
+    // Walk up ancestors to determine depth and find root
     let depth = 0;
     let current = c;
     let root = c;
@@ -68,25 +68,20 @@ const CompetencyLinker = ({ competencies = [], onLinksChange }) => {
       current = competencies.find((p) => p.id === current.parentId);
     }
 
-    // Determine root prefix
-    let rootPrefix = "";
-    if (root && root.name) {
-      if (root.name.toLowerCase().includes("oneself")) rootPrefix = "cm1";
-      if (root.name.toLowerCase().includes("others")) rootPrefix = "cm2";
-    }
+    const modelPrefix = root.modelLabel || "cm?";
 
     if (depth === 0) {
-      return `${rootPrefix}:${c.name}`;
+      return `${modelPrefix}: ${c.name}`;
     }
 
-    return `${rootPrefix}:Level${depth}:${c.name}`;
+    return `${modelPrefix} | Level ${depth}: ${c.name}`;
   };
 
   const formatLabel = (c) => buildLabel(c);
 
   return (
     <div className="competency-linker" style={{ marginTop: "1rem", padding: "1rem", border: "1px solid #ccc", borderRadius: "8px" }}>
-      <h3 className="font-semibold">Crosslinked Competencies</h3>
+      <h3 className="font-semibold">Crosslink Competencies</h3>
 
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
         <select value={source} onChange={(e) => setSource(e.target.value)}>
@@ -109,7 +104,7 @@ const CompetencyLinker = ({ competencies = [], onLinksChange }) => {
       </div>
 
       <div className="linked-competencies">
-        {/* <h4>Crosslinked Competencies</h4> */}
+        <h4>Crosslinked Competencies</h4>
         <ul>
           {links.map((l, idx) => {
             const src = competencies.find((c) => c.id === l.sourceId);
