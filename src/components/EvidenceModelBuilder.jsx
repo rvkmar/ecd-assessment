@@ -3,22 +3,17 @@ import { v4 as uuidv4 } from "uuid";
 import Card from "./Card";
 import Modal from "./Modal";
 import { loadDB, saveDB, renumberRootEvidenceModels, buildCompetencyOptions } from "../utils/db";
+import ScoringRuleEditor from "./ScoringRuleEditor";
 
 export default function EvidenceModelBuilder({ notify }) {
   const [models, setModels] = useState(loadDB().evidenceModels || []);
   const [name, setName] = useState("");
   const [modal, setModal] = useState({ open: false, id: null });
   const [editingId, setEditingId] = useState(null);
+  const [confirmedIds, setConfirmedIds] = useState([]);
 
-  // Load competencies across all competency models
-  // const competencyModels = loadDB().competencyModels || [];
-  // const allCompetencies = competencyModels.flatMap((cm) => cm.competencies);
-
-  // ✅ Load competencies with hierarchical labels
   const competencyModels = loadDB().competencyModels || [];
   const allCompetencies = buildCompetencyOptions(competencyModels);
-
-  // For quick lookup (id → label)
   const competencyLookup = Object.fromEntries(allCompetencies.map(c => [c.id, c.label]));
 
   const addModel = () => {
@@ -29,13 +24,11 @@ export default function EvidenceModelBuilder({ notify }) {
       name,
       constructs: [],
       observations: [],
+      rubrics: [],
       scoringRule: "sum"
     };
     db.evidenceModels.push(newModel);
-
-    // ✅ Ensure em1, em2… numbering
     renumberRootEvidenceModels(db);
-
     saveDB(db);
     setModels(db.evidenceModels);
     setName("");
@@ -55,84 +48,28 @@ export default function EvidenceModelBuilder({ notify }) {
     const db = loadDB();
     db.evidenceModels = db.evidenceModels.filter((m) => m.id !== id);
     db.tasks = db.tasks.filter((t) => t.evidenceModelId !== id);
-
-    // ✅ Renumber after delete
     renumberRootEvidenceModels(db);
-
     saveDB(db);
     setModels(db.evidenceModels);
     notify("Model removed.");
   };
 
-  const addConstruct = (id, text, linkedCompetency) => {
-    if (!text.trim()) return;
-    updateModel(id, (m) => ({
-      constructs: [
-        ...m.constructs,
-        { id: uuidv4(), text, linkedCompetencyId: linkedCompetency || null }
-      ]
-    }));
-    notify("Construct added.");
+  const confirmEvidence = (id) => {
+    if (!confirmedIds.includes(id)) {
+      setConfirmedIds([...confirmedIds, id]);
+    }
+    setEditingId(null);
+    notify("Evidence confirmed. Further edits disabled.");
   };
 
-  const removeConstruct = (id, constructId) => {
-    updateModel(id, (m) => ({
-      constructs: m.constructs.filter((c) => c.id !== constructId)
-    }));
-    notify("Construct removed.");
-  };
-
-  const addObservation = (id, text) => {
-    if (!text.trim()) return;
-    updateModel(id, (m) => ({
-      observations: [...m.observations, { id: uuidv4(), text }]
-    }));
-    notify("Evidence Rule / Observation added.");
-  };
-
-  const removeObservation = (id, index) => {
-    updateModel(id, (m) => ({
-      observations: m.observations.filter((_, i) => i !== index)
-    }));
-    notify("Evidence Rule / Observation removed.");
-  };
-
-  // ✅ Rubric helpers moved inside component
-  const addRubric = (modelId, observationId) => {
-    updateModel(modelId, (m) => ({
-      rubrics: [
-        ...(m.rubrics || []),
-        { id: uuidv4(), observationId, levels: [] }
-      ]
-    }));
-    notify("Rubric added.");
-  };
-
-  const addRubricLevel = (modelId, rubricId, description) => {
-    updateModel(modelId, (m) => ({
-      rubrics: m.rubrics.map((r) =>
-        r.id === rubricId
-          ? {
-              ...r,
-              levels: [...r.levels, { level: r.levels.length + 1, description }]
-            }
-          : r
-      )
-    }));
-    notify("Rubric level added.");
-  };
-
-  const removeRubric = (modelId, rubricId) => {
-    updateModel(modelId, (m) => ({
-      rubrics: m.rubrics.filter((r) => r.id !== rubricId)
-    }));
-    notify("Rubric removed.");
-  };
-
-
-  const updateRule = (id, rule) => {
-    updateModel(id, () => ({ scoringRule: rule }));
-    notify("Statistical Model / Scoring rule updated.");
+  const scoringRuleSummary = (m) => {
+    if (!m.scoringRule) return "Scoring Rule: None";
+    if (m.scoringRule === "sum") return "Scoring Rule: Sum";
+    if (m.scoringRule === "average") return "Scoring Rule: Average";
+    if (m.scoringRule === "irt") return "Scoring Rule: IRT";
+    if (m.scoringRule === "bn") return "Scoring Rule: Bayesian Network";
+    // if (m.scoringRule === "bn") return `Scoring Rule: Bayesian Network (${(m.bnNodes || []).length} nodes)`;
+    return `Scoring Rule: ${m.scoringRule}`;
   };
 
   return (
@@ -153,28 +90,29 @@ export default function EvidenceModelBuilder({ notify }) {
       </div>
 
       <div className="space-y-4">
-        {models.map((m) => (
-          // <div key={m.id} className="border rounded-lg p-3 bg-gray-50 space-y-2">
+        {models.map((m) => {
+          const isLocked = confirmedIds.includes(m.id);
+          const isEditing = editingId === m.id;
+          const applyLockedStyle = isLocked && !isEditing;
 
-          //   <div className="flex justify-between items-center">
-          //     <h4 className="font-bold">{m.name}</h4>
-          //     <button
-          //       onClick={() => setModal({ open: true, id: m.id })}
-          //       className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-          //     >
-          //       Remove
-          //     </button>
-          //   </div>
-      
-            <div key={m.id} className="border rounded-lg p-3 bg-gray-50 space-y-2">
+          return (
+            <div
+              key={m.id}
+              className={`border rounded-lg p-3 space-y-2 ${applyLockedStyle ? "bg-gray-200 opacity-70" : "bg-gray-50"}`}
+            >
               <div className="flex justify-between items-center">
-                <h4 className="font-bold">
+                <h4 className="font-bold flex items-center gap-2">
                   {m.modelLabel ? `${m.modelLabel}: ` : ""}{m.name}
+                  {applyLockedStyle && (
+                    <span className="text-green-600 text-xs font-semibold flex items-center gap-1">
+                      🔒 Confirmed
+                    </span>
+                  )}
                 </h4>
                 <div className="flex gap-2">
-                  {editingId === m.id ? (
+                  {isEditing ? (
                     <button
-                      onClick={() => setEditingId(null)}
+                      onClick={() => confirmEvidence(m.id)}
                       className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
                     >
                       Confirm
@@ -210,11 +148,12 @@ export default function EvidenceModelBuilder({ notify }) {
                           </span>
                         )}
                       </span>
-
-                      {editingId === m.id && (
+                      {isEditing && (
                         <button
                           className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                          onClick={() => removeConstruct(m.id, c.id)}
+                          onClick={() => updateModel(m.id, (mm) => ({
+                            constructs: mm.constructs.filter((cc) => cc.id !== c.id)
+                          }))}
                         >
                           −
                         </button>
@@ -222,37 +161,42 @@ export default function EvidenceModelBuilder({ notify }) {
                     </li>
                   ))}
                 </ul>
-                {editingId === m.id && (
+                {isEditing && (
                   <ConstructInput
-                    onAdd={(txt, comp) => addConstruct(m.id, txt, comp)}
+                    onAdd={(txt, comp) => updateModel(m.id, (mm) => ({
+                      constructs: [...mm.constructs, { id: uuidv4(), text: txt, linkedCompetencyId: comp || null }]
+                    }))}
                     competencies={allCompetencies}
                   />
                 )}
               </div>
 
-              {/* Observations */}
+              {/* Observations + Rubrics */}
               <div>
                 <h5 className="font-semibold">Evidence Rules (or) Observations</h5>
                 <ul className="text-sm ml-4 space-y-1">
                   {m.observations.map((o, i) => {
-                    const rubric = m.rubrics.find((r) => r.observationId === o.id);
-
+                    const rubric = (m.rubrics || []).find(r => r.observationId === o.id);
                     return (
                       <li key={o.id || i} className="space-y-1">
                         <div className="flex justify-between items-center">
                           <span>{o.text}</span>
-                          {editingId === m.id && (
+                          {isEditing && (
                             <div className="flex gap-2">
                               <button
                                 className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                                onClick={() => removeObservation(m.id, i)}
+                                onClick={() => updateModel(m.id, (mm) => ({
+                                  observations: mm.observations.filter((_, idx) => idx !== i)
+                                }))}
                               >
                                 −
                               </button>
                               {!rubric && (
                                 <button
                                   className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
-                                  onClick={() => addRubric(m.id, o.id)}
+                                  onClick={() => updateModel(m.id, (mm) => ({
+                                    rubrics: [...(mm.rubrics || []), { id: uuidv4(), observationId: o.id, levels: [] }]
+                                  }))}
                                 >
                                   Add Rubric
                                 </button>
@@ -260,20 +204,20 @@ export default function EvidenceModelBuilder({ notify }) {
                             </div>
                           )}
                         </div>
-
-                        {/* Rubric block */}
                         {rubric && (
                           <div className="ml-6 border p-2 rounded bg-white">
                             <div className="flex justify-between items-center mb-1">
                               <h6 className="font-medium text-sm">Rubric</h6>
-                              {editingId === m.id && (
+                              {isEditing ? (
                                 <button
-                                  onClick={() => removeRubric(m.id, rubric.id)}
+                                  onClick={() => updateModel(m.id, (mm) => ({
+                                    rubrics: mm.rubrics.filter(r => r.id !== rubric.id)
+                                  }))}
                                   className="px-2 py-0.5 bg-red-400 text-white rounded text-xs"
                                 >
                                   Remove Rubric
                                 </button>
-                              )}
+                              ) : null}
                             </div>
                             <ul className="text-xs ml-2 space-y-1">
                               {rubric.levels.map((lvl, idx) => (
@@ -282,42 +226,49 @@ export default function EvidenceModelBuilder({ notify }) {
                                 </li>
                               ))}
                             </ul>
-
-                            {editingId === m.id && (
-                              <RubricLevelInput
-                                onAdd={(desc) => addRubricLevel(m.id, rubric.id, desc)}
-                              />
-                            )}
+                            {isEditing ? (
+                              <RubricLevelInput onAdd={(desc) => updateModel(m.id, (mm) => ({
+                                rubrics: mm.rubrics.map(r =>
+                                  r.id === rubric.id ? { ...r, levels: [...r.levels, { level: r.levels.length + 1, description: desc }] } : r
+                                )
+                              }))} />
+                            ) : null}
                           </div>
                         )}
                       </li>
                     );
                   })}
                 </ul>
-                {editingId === m.id && (
-                  <ObservationInput onAdd={(txt) => addObservation(m.id, txt)} />
+                {isEditing && (
+                  <ObservationInput
+                    onAdd={(txt) => updateModel(m.id, (mm) => ({
+                      observations: [...mm.observations, { id: uuidv4(), text: txt }]
+                    }))}
+                  />
                 )}
               </div>
 
               {/* Scoring Rule */}
-              <div>
-                <h5 className="font-semibold">Statistical Model (or) Scoring Rule</h5>
-                  <select
-                    className="border p-2 rounded"
-                    value={m.scoringRule}
-                    disabled={editingId !== m.id}
-                    onChange={(e) => updateRule(m.id, e.target.value)}
-                  >
-                    <option value="sum">Sum</option>
-                    <option value="average">Average</option>
-                    <option value="irt">IRT (R backend)</option>
-                  </select>
-              </div>
-          </div>
-         ))} 
-        </div>
+              {isEditing ? (
+                <ScoringRuleEditor
+                  model={m}
+                  editingId={editingId}
+                  updateModel={updateModel}
+                  allowRemoveNode={true}
+                />
+              ) : (
+                  <div>
+                    <h5 className="font-semibold">Scoring Rule (or) Statistical Model</h5>
+                    <ul className="text-sm ml-4 space-y-1">
+                      {scoringRuleSummary(m)}
+                    </ul>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-      {/* Delete modal */}
       <Modal
         isOpen={modal.open}
         onClose={() => setModal({ open: false, id: null })}
@@ -336,7 +287,6 @@ export default function EvidenceModelBuilder({ notify }) {
 function ConstructInput({ onAdd, competencies }) {
   const [val, setVal] = useState("");
   const [linked, setLinked] = useState("");
-
   return (
     <div className="flex gap-2 mt-1">
       <input
@@ -351,20 +301,14 @@ function ConstructInput({ onAdd, competencies }) {
         onChange={(e) => setLinked(e.target.value)}
       >
         <option value="">Link to competency</option>
-        {/* {competencies.map((c, i) => (
-          <option key={i} value={c}>
-            {c}
-          </option>
-        ))} */}
         {competencies.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.label}
-          </option>
+          <option key={c.id} value={c.id}>{c.label}</option>
         ))}
       </select>
       <button
         className="px-2 bg-green-500 text-white text-xs rounded"
         onClick={() => {
+          if (!val.trim()) return;
           onAdd(val, linked);
           setVal("");
           setLinked("");
@@ -389,6 +333,7 @@ function ObservationInput({ onAdd }) {
       <button
         className="px-2 bg-green-500 text-white text-xs rounded"
         onClick={() => {
+          if (!val.trim()) return;
           onAdd(val);
           setVal("");
         }}
@@ -399,7 +344,6 @@ function ObservationInput({ onAdd }) {
   );
 }
 
-// New helpers for rubrics
 function RubricLevelInput({ onAdd }) {
   const [val, setVal] = useState("");
   return (

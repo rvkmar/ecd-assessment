@@ -24,9 +24,43 @@ export const ECD_SCHEMA = {
             },
           },
           observations: { type: "array" },
-          scoringRule: { type: "string" },
-        },
-      },
+          scoringRule: {
+            type: "string",
+            enum: ["Sum", "Average", "IRT", "BN"]
+          },
+          bnModel: {
+            type: "object",
+            properties: {
+              nodes: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["id", "type"],
+                  properties: {
+                    id: { type: "string" },
+                    type: { enum: ["latent", "evidence"] },
+                    parents: {
+                      type: "array",
+                      items: { type: "string" }
+                    },
+                    prior: {
+                      type: "object",
+                      additionalProperties: { type: "number" }
+                    },
+                    cpt: {
+                      type: "object",
+                      additionalProperties: {
+                        type: "object",
+                        additionalProperties: { type: "number" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     },
     competencyModels: { type: "array" },
     tasks: { type: "array" },
