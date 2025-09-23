@@ -90,15 +90,25 @@ router.get("/evidenceModels", (req, res) => {
 // ------------------------------
 // POST /api/evidenceModels
 // ------------------------------
-// body: { name, constructs, observations, rubrics, scoringRule }
 router.post("/evidenceModels", (req, res) => {
   const { name, constructs, observations, rubrics, scoringRule } = req.body;
   const db = loadDB();
 
+  // ✅ Validate competencyId for constructs
+  for (const c of constructs || []) {
+    if (c.competencyId && !db.competencyModels.find(cm => cm.id === c.competencyId)) {
+      return res.status(400).json({ error: `Invalid competencyId: ${c.competencyId}` });
+    }
+  }
+
   const newModel = {
     id: `em${Date.now()}`,
     name,
-    constructs: constructs || [],
+    constructs: (constructs || []).map(c => ({
+      id: c.id || `c${Date.now()}`,
+      text: c.text,
+      competencyId: c.competencyId || ""   // ✅ store competency link
+    })),
     observations: observations || [],
     rubrics: rubrics || [],
     scoringRule: scoringRule || {},
@@ -114,7 +124,6 @@ router.post("/evidenceModels", (req, res) => {
 // ------------------------------
 // PUT /api/evidenceModels/:id
 // ------------------------------
-// Update constructs, observations, rubrics, scoringRule, name, confirmed
 router.put("/evidenceModels/:id", (req, res) => {
   const { id } = req.params;
   const updates = req.body;
@@ -123,16 +132,32 @@ router.put("/evidenceModels/:id", (req, res) => {
   const idx = db.evidenceModels.findIndex((m) => m.id === id);
   if (idx === -1) return res.status(404).json({ error: "Evidence model not found" });
 
-  db.evidenceModels[idx] = { ...db.evidenceModels[idx], ...updates };
-
-  // Ensure scoringRule is always an object
-  if (!db.evidenceModels[idx].scoringRule) {
-    db.evidenceModels[idx].scoringRule = {};
+  // ✅ Validate competencyId for constructs
+  for (const c of updates.constructs || []) {
+    if (c.competencyId && !db.competencyModels.find(cm => cm.id === c.competencyId)) {
+      return res.status(400).json({ error: `Invalid competencyId: ${c.competencyId}` });
+    }
   }
 
+  // Merge updates and normalize constructs
+  const updatedModel = {
+    ...db.evidenceModels[idx],
+    ...updates,
+    constructs: (updates.constructs || db.evidenceModels[idx].constructs || []).map(c => ({
+      id: c.id || `c${Date.now()}`,
+      text: c.text,
+      competencyId: c.competencyId || ""   // ✅ ensure competencyId persists
+    }))
+  };
+
+  if (!updatedModel.scoringRule) {
+    updatedModel.scoringRule = {};
+  }
+
+  db.evidenceModels[idx] = updatedModel;
   saveDB(db);
 
-  res.json(db.evidenceModels[idx]);
+  res.json(updatedModel);
 });
 
 // ------------------------------

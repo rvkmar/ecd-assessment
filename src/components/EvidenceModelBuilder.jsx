@@ -13,12 +13,18 @@ export default function EvidenceModelBuilder({ notify }) {
   const [scoringRule, setScoringRule] = useState({});
   const [modal, setModal] = useState({ open: false, id: null, type: null });
   const [editingModel, setEditingModel] = useState(null);
+  const [competencies, setCompetencies] = useState([]);
 
   // Load evidence models from API
   useEffect(() => {
     fetch("/api/evidenceModels")
       .then((r) => r.json())
       .then((data) => setModels(data || []));
+
+    // Load competencies from API
+    fetch("/api/competencies")
+      .then((r) => r.json())
+      .then((data) => setCompetencies(data || []));
   }, []);
 
   const resetForm = () => {
@@ -80,13 +86,17 @@ export default function EvidenceModelBuilder({ notify }) {
     if (!constructText.trim()) return;
     setConstructs((prev) => [
       ...prev,
-      { id: Date.now().toString(), text: constructText },
+      { id: Date.now().toString(), text: constructText, competencyId: "" },
     ]);
     setConstructText("");
   };
 
   const updateConstructText = (id, text) => {
     setConstructs((prev) => prev.map((c) => (c.id === id ? { ...c, text } : c)));
+  };
+
+  const updateConstructCompetency = (id, competencyId) => {
+    setConstructs((prev) => prev.map((c) => (c.id === id ? { ...c, competencyId } : c)));
   };
 
   const removeConstruct = (id) => {
@@ -174,141 +184,157 @@ export default function EvidenceModelBuilder({ notify }) {
 
   return (
     <Card title="Evidence Models">
-      <input
-        className="border p-2 w-full mb-2"
-        placeholder="Evidence Model name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-
-      <div className="mb-2">
-        <p className="text-sm mb-1">Constructs:</p>
-        {constructs.map((c) => (
-          <div key={c.id} className="text-sm mb-1 flex items-center gap-2">
-            <input
-              className="border p-1 flex-1"
-              value={c.text}
-              onChange={(e) => updateConstructText(c.id, e.target.value)}
-            />
-            <button
-              onClick={() => setModal({ open: true, id: c.id, type: "construct" })}
-              className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-        <div className="flex gap-2">
-          <input
-            className="border p-2 flex-1"
-            placeholder="New construct"
-            value={constructText}
-            onChange={(e) => setConstructText(e.target.value)}
-          />
-          <button
-            onClick={addConstruct}
-            className="px-2 py-1 bg-gray-500 text-white rounded"
-          >
-            + Add
-          </button>
-        </div>
-      </div>
-
-      <div className="mb-2">
-        <p className="text-sm mb-1">Observations:</p>
-        {observations.map((o) => (
-          <div key={o.id} className="text-sm mb-1 flex items-center gap-2">
-            <input
-              className="border p-1 flex-1"
-              value={o.text}
-              onChange={(e) => updateObservationText(o.id, e.target.value)}
-            />
-            <button
-              onClick={() => setModal({ open: true, id: o.id, type: "observation" })}
-              className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-            >
-              Remove
-            </button>
-          </div>
-        ))}
+      <div className="flex items-center gap-2 mb-2">
+        <input
+          className="border p-2 flex-1"
+          placeholder="Evidence Model name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <button
-          onClick={addObservation}
-          className="px-2 py-1 bg-gray-500 text-white rounded"
+          onClick={addOrUpdateModel}
+          className="px-3 py-1 bg-blue-500 text-white rounded"
         >
-          + Observation
+          {editingModel ? "Update Model" : "Add Model"}
         </button>
       </div>
 
-      <div className="mb-2">
-        <p className="text-sm mb-1">Rubrics:</p>
-        {rubrics.map((r) => (
-          <div key={r.id} className="text-sm mb-2 p-2 border rounded">
-            <div className="flex items-center gap-2 mb-1">
+      <div className="space-y-4">
+        <div className="mb-2">
+          <p className="text-sm mb-1">Constructs (linked to Competencies):</p>
+          {constructs.map((c) => (
+            <div key={c.id} className="text-sm mb-1 flex items-center gap-2">
+              <input
+                className="border p-1 flex-1"
+                value={c.text}
+                onChange={(e) => updateConstructText(c.id, e.target.value)}
+              />
               <select
                 className="border p-1"
-                value={r.observationId}
-                onChange={(e) => updateRubricObservation(r.id, e.target.value)}
+                value={c.competencyId || ""}
+                onChange={(e) => updateConstructCompetency(c.id, e.target.value)}
               >
-                {observations.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.text}
+                <option value="">-- Select Competency --</option>
+                {competencies.map((comp) => (
+                  <option key={comp.id} value={comp.id}>
+                    {comp.name}
                   </option>
                 ))}
               </select>
               <button
-                onClick={() => confirmRemoveRubric(r.id)}
+                onClick={() => setModal({ open: true, id: c.id, type: "construct" })}
                 className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
               >
-                Remove Rubric
+                Remove
               </button>
             </div>
-            <div className="space-y-1">
-              {r.levels.map((lvl, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    className="border p-1 flex-1"
-                    value={lvl}
-                    onChange={(e) => updateRubricLevel(r.id, i, e.target.value)}
-                  />
-                  <button
-                    onClick={() => removeRubricLevel(r.id, i)}
-                    className="px-2 py-0.5 bg-red-400 text-white rounded text-xs"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={() => addRubricLevel(r.id)}
-                className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
-              >
-                + Level
-              </button>
-            </div>
+          ))}
+          <div className="flex gap-2">
+            <input
+              className="border p-2 flex-1"
+              placeholder="New construct"
+              value={constructText}
+              onChange={(e) => setConstructText(e.target.value)}
+            />
+            <button
+              onClick={addConstruct}
+              className="px-2 py-1 bg-gray-500 text-white rounded"
+            >
+              + Add
+            </button>
           </div>
-        ))}
-        <button
-          onClick={addRubric}
-          className="px-2 py-1 bg-purple-500 text-white rounded"
-        >
-          + Rubric
-        </button>
-      </div>
+        </div>
 
-      <div className="mb-2">
-        <ScoringRuleEditor
-          rule={scoringRule || {}}
-          setRule={setScoringRule}
-          rubrics={rubrics}
-        />
-      </div>
+        <div className="mb-2">
+          <p className="text-sm mb-1">Observations:</p>
+          {observations.map((o) => (
+            <div key={o.id} className="text-sm mb-1 flex items-center gap-2">
+              <input
+                className="border p-1 flex-1"
+                value={o.text}
+                onChange={(e) => updateObservationText(o.id, e.target.value)}
+              />
+              <button
+                onClick={() => setModal({ open: true, id: o.id, type: "observation" })}
+                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={addObservation}
+            className="px-2 py-1 bg-gray-500 text-white rounded"
+          >
+            + Observation
+          </button>
+        </div>
 
-      <button
-        onClick={addOrUpdateModel}
-        className="px-3 py-1 bg-blue-500 text-white rounded"
-      >
-        {editingModel ? "Update Model" : "Add Model"}
-      </button>
+        <div className="mb-2">
+          <p className="text-sm mb-1">Rubrics:</p>
+          {rubrics.map((r) => (
+            <div key={r.id} className="text-sm mb-2 p-2 border rounded">
+              <div className="flex items-center gap-2 mb-1">
+                <select
+                  className="border p-1"
+                  value={r.observationId}
+                  onChange={(e) => updateRubricObservation(r.id, e.target.value)}
+                >
+                  {observations.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.text}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => confirmRemoveRubric(r.id)}
+                  className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+                >
+                  Remove Rubric
+                </button>
+              </div>
+              <div className="space-y-1">
+                {r.levels.map((lvl, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <input
+                      className="border p-1 flex-1"
+                      value={lvl}
+                      onChange={(e) => updateRubricLevel(r.id, i, e.target.value)}
+                    />
+                    <button
+                      onClick={() => removeRubricLevel(r.id, i)}
+                      className="px-2 py-0.5 bg-red-400 text-white rounded text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addRubricLevel(r.id)}
+                  className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
+                >
+                  + Level
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            onClick={addRubric}
+            className="px-2 py-1 bg-purple-500 text-white rounded"
+          >
+            + Rubric
+          </button>
+        </div>
+
+        <div className="mb-2">
+          <p className="text-sm mb-1">Scoring:</p>
+          <ScoringRuleEditor
+            rule={scoringRule || {}}
+            setRule={setScoringRule}
+            rubrics={rubrics}
+          />
+        </div>
+      </div>
 
       <ul className="mt-2 text-sm space-y-1">
         {models.map((m) => (

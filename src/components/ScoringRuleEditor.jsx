@@ -23,7 +23,7 @@ export default function ScoringRuleEditor({ rule = {}, setRule = () => {}, rubri
 
   return (
     <div>
-      <h5 className="font-semibold">Statistical Model (or) Scoring Rule</h5>
+      <h3 className="text-sm mb1">Statistical Model (or) Scoring Rule</h3>
       <select
         className="border p-2 rounded mb-2"
         value={ruleType}

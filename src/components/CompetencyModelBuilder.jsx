@@ -1,5 +1,9 @@
-import React, { useState } from "react";
-import { loadDB, saveDB, renumberRootCompetencies } from "../utils/db";
+import React, { useState, useEffect } from "react";
+import {
+  getCompetencies,
+  addCompetency,
+  deleteCompetency,
+} from "../utils/dualStorageUtils";
 
 import Modal from "./Modal";
 import Card from "./Card";
@@ -89,18 +93,8 @@ function getCompetencyOptions(nodes, parentId = null, level = 0) {
   return options;
 }
 
-// Utility to recursively collect all descendant IDs
-function getAllDescendantIds(nodes, parentId) {
-  const children = nodes.filter((n) => n.parentId === parentId);
-  let ids = children.map((c) => c.id);
-  children.forEach((child) => {
-    ids = ids.concat(getAllDescendantIds(nodes, child.id));
-  });
-  return ids;
-}
-
 export default function CompetencyModels({ notify }) {
-  const [competencies, setCompetencies] = useState(loadDB().competencyModels || []);
+  const [competencies, setCompetencies] = useState([]);
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
   const [draftParentId, setDraftParentId] = useState("");
@@ -109,56 +103,44 @@ export default function CompetencyModels({ notify }) {
   const [showGraph, setShowGraph] = useState(false);
   const [links, setLinks] = useState([]);
 
-  const saveCompetency = () => {
+  useEffect(() => {
+    getCompetencies().then(setCompetencies);
+  }, []);
+
+  const saveCompetency = async () => {
     if (!draftName.trim()) return notify("Enter competency name");
-    const db = loadDB();
 
     if (editId) {
-      db.competencyModels = db.competencyModels.map((c) =>
-        c.id === editId
-          ? {
-              ...c,
-              name: draftName,
-              description: draftDescription,
-              parentId: draftParentId.length ? draftParentId : [] || null,
-            }
-          : c
-      );
-      notify("Competency updated.");
-    } else {
-      const rootCount = db.competencyModels.filter((c) => !c.parentId).length;
-      const modelLabel = draftParentId ? null : `cm${rootCount + 1}`;
-
-      db.competencyModels.push({
-        id: `c${Date.now()}`,
+      // For simplicity, treat update as delete + add
+      await deleteCompetency(editId);
+      await addCompetency({
         name: draftName,
         description: draftDescription,
         parentId: draftParentId || null,
-        modelLabel: modelLabel,
+      });
+      notify("Competency updated.");
+    } else {
+      await addCompetency({
+        name: draftName,
+        description: draftDescription,
+        parentId: draftParentId || null,
       });
       notify("Competency added.");
     }
-    renumberRootCompetencies(db);
-    saveDB(db);
-    setCompetencies(db.competencyModels);
+
+    const updated = await getCompetencies();
+    setCompetencies(updated);
+
     setDraftName("");
     setDraftDescription("");
     setDraftParentId("");
     setEditId(null);
   };
 
-  const removeCompetency = (id) => {
-    const db = loadDB();
-
-    // Collect this competency + all descendants
-    const descendantIds = getAllDescendantIds(db.competencyModels, id);
-    const idsToRemove = [id, ...descendantIds];
-
-    db.competencyModels = db.competencyModels.filter((c) => !idsToRemove.includes(c.id));
-
-    renumberRootCompetencies(db);
-    saveDB(db);
-    setCompetencies(db.competencyModels);
+  const removeCompetency = async (id) => {
+    await deleteCompetency(id);
+    const updated = await getCompetencies();
+    setCompetencies(updated);
     notify("Competency and its children removed.");
   };
 
@@ -220,7 +202,7 @@ export default function CompetencyModels({ notify }) {
             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
               showGraph ? "translate-x-6" : "translate-x-1"
             }`}
-          />
+          ></span>
         </button>
       </div>
 
@@ -249,7 +231,7 @@ export default function CompetencyModels({ notify }) {
         isOpen={modal.open}
         onClose={() => setModal({ open: false, id: null })}
         onConfirm={() => {
-          removeCompetency(modal.id);
+          if (modal.id) removeCompetency(modal.id);
           setModal({ open: false, id: null });
         }}
         title="Confirm Delete"

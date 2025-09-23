@@ -17,7 +17,10 @@ export const schema = {
     name: 'string',
     description: 'string',
     modelLabel: 'string', // emX
+    constructs: 'array',  // NEW: each construct has id, text, competencyId
+    observations: 'array', // NEW: observation definitions
     rubrics: 'array',
+    scoringRule: 'object', // NEW: scoring configuration
     createdAt: 'date',
     updatedAt: 'date',
   },
@@ -83,6 +86,9 @@ export function validateEntity(collection, obj) {
     }
     if (expected === 'array' && !Array.isArray(obj[key])) {
       errors.push(`${key} should be array`);
+    }
+    if (expected === 'object' && typeof obj[key] !== 'object') {
+      errors.push(`${key} should be object`);
     }
     if (expected === 'date') {
       const d = new Date(obj[key]);
