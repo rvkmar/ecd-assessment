@@ -1,369 +1,365 @@
-import React, { useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+import React, { useState, useEffect } from "react";
 import Card from "./Card";
 import Modal from "./Modal";
-import { loadDB, saveDB, renumberRootEvidenceModels, buildCompetencyOptions } from "../utils/db";
 import ScoringRuleEditor from "./ScoringRuleEditor";
 
 export default function EvidenceModelBuilder({ notify }) {
-  const [models, setModels] = useState(loadDB().evidenceModels || []);
+  const [models, setModels] = useState([]);
   const [name, setName] = useState("");
-  const [modal, setModal] = useState({ open: false, id: null });
-  const [editingId, setEditingId] = useState(null);
-  const [confirmedIds, setConfirmedIds] = useState([]);
+  const [constructText, setConstructText] = useState("");
+  const [constructs, setConstructs] = useState([]);
+  const [observations, setObservations] = useState([]);
+  const [rubrics, setRubrics] = useState([]);
+  const [scoringRule, setScoringRule] = useState({});
+  const [modal, setModal] = useState({ open: false, id: null, type: null });
+  const [editingModel, setEditingModel] = useState(null);
 
-  const competencyModels = loadDB().competencyModels || [];
-  const allCompetencies = buildCompetencyOptions(competencyModels);
-  const competencyLookup = Object.fromEntries(allCompetencies.map(c => [c.id, c.label]));
+  // Load evidence models from API
+  useEffect(() => {
+    fetch("/api/evidenceModels")
+      .then((r) => r.json())
+      .then((data) => setModels(data || []));
+  }, []);
 
-  const addModel = () => {
-    if (!name.trim()) return notify("Enter model name");
-    const db = loadDB();
-    const newModel = {
-      id: uuidv4(),
-      name,
-      constructs: [],
-      observations: [],
-      rubrics: [],
-      scoringRule: "sum"
-    };
-    db.evidenceModels.push(newModel);
-    renumberRootEvidenceModels(db);
-    saveDB(db);
-    setModels(db.evidenceModels);
+  const resetForm = () => {
     setName("");
-    notify("Model added.");
+    setConstructText("");
+    setConstructs([]);
+    setObservations([]);
+    setRubrics([]);
+    setScoringRule({});
+    setEditingModel(null);
   };
 
-  const updateModel = (id, updater) => {
-    const db = loadDB();
-    db.evidenceModels = db.evidenceModels.map((m) =>
-      m.id === id ? { ...m, ...updater(m) } : m
-    );
-    saveDB(db);
-    setModels(db.evidenceModels);
-  };
+  const addOrUpdateModel = async () => {
+    if (!name.trim()) return notify("Enter model name");
 
-  const removeModel = (id) => {
-    const db = loadDB();
-    db.evidenceModels = db.evidenceModels.filter((m) => m.id !== id);
-    db.tasks = db.tasks.filter((t) => t.evidenceModelId !== id);
-    renumberRootEvidenceModels(db);
-    saveDB(db);
-    setModels(db.evidenceModels);
-    notify("Model removed.");
-  };
+    const payload = { name, constructs, observations, rubrics, scoringRule };
 
-  const confirmEvidence = (id) => {
-    if (!confirmedIds.includes(id)) {
-      setConfirmedIds([...confirmedIds, id]);
+    let res;
+    if (editingModel) {
+      res = await fetch(`/api/evidenceModels/${editingModel.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      res = await fetch("/api/evidenceModels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
     }
-    setEditingId(null);
-    notify("Evidence confirmed. Further edits disabled.");
+
+    if (res.ok) {
+      const newModel = await res.json();
+      if (editingModel) {
+        setModels((prev) => prev.map((m) => (m.id === newModel.id ? newModel : m)));
+        notify("Evidence model updated.");
+      } else {
+        setModels((prev) => [...prev, newModel]);
+        notify("Evidence model added.");
+      }
+      resetForm();
+    } else {
+      notify("❌ Failed to save evidence model");
+    }
   };
 
-  const scoringRuleSummary = (m) => {
-    if (!m.scoringRule) return "Scoring Rule: None";
-    if (m.scoringRule === "sum") return "Scoring Rule: Sum";
-    if (m.scoringRule === "average") return "Scoring Rule: Average";
-    if (m.scoringRule === "irt") return "Scoring Rule: IRT";
-    if (m.scoringRule === "bn") return "Scoring Rule: Bayesian Network";
-    // if (m.scoringRule === "bn") return `Scoring Rule: Bayesian Network (${(m.bnNodes || []).length} nodes)`;
-    return `Scoring Rule: ${m.scoringRule}`;
+  const removeModel = async (id) => {
+    const res = await fetch(`/api/evidenceModels/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setModels((prev) => prev.filter((m) => m.id !== id));
+      notify("Evidence model removed.");
+    } else {
+      notify("❌ Failed to remove evidence model");
+    }
+  };
+
+  const addConstruct = () => {
+    if (!constructText.trim()) return;
+    setConstructs((prev) => [
+      ...prev,
+      { id: Date.now().toString(), text: constructText },
+    ]);
+    setConstructText("");
+  };
+
+  const updateConstructText = (id, text) => {
+    setConstructs((prev) => prev.map((c) => (c.id === id ? { ...c, text } : c)));
+  };
+
+  const removeConstruct = (id) => {
+    setConstructs((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const addObservation = () => {
+    setObservations((prev) => [
+      ...prev,
+      { id: Date.now().toString(), text: "New observation" },
+    ]);
+  };
+
+  const updateObservationText = (id, text) => {
+    setObservations((prev) => prev.map((o) => (o.id === id ? { ...o, text } : o)));
+  };
+
+  const removeObservation = (id) => {
+    setObservations((prev) => prev.filter((o) => o.id !== id));
+    setRubrics((prev) => prev.filter((r) => r.observationId !== id));
+  };
+
+  const addRubric = () => {
+    if (observations.length === 0) return notify("Add an observation first");
+    setRubrics((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        observationId: observations[0].id,
+        levels: ["Level 1", "Level 2"],
+      },
+    ]);
+  };
+
+  const updateRubricObservation = (rubricId, observationId) => {
+    setRubrics((prev) =>
+      prev.map((r) => (r.id === rubricId ? { ...r, observationId } : r))
+    );
+  };
+
+  const updateRubricLevel = (rubricId, index, value) => {
+    setRubrics((prev) =>
+      prev.map((r) =>
+        r.id === rubricId
+          ? { ...r, levels: r.levels.map((lvl, i) => (i === index ? value : lvl)) }
+          : r
+      )
+    );
+  };
+
+  const addRubricLevel = (rubricId) => {
+    setRubrics((prev) =>
+      prev.map((r) =>
+        r.id === rubricId ? { ...r, levels: [...r.levels, "New level"] } : r
+      )
+    );
+  };
+
+  const removeRubricLevel = (rubricId, index) => {
+    setRubrics((prev) =>
+      prev.map((r) =>
+        r.id === rubricId
+          ? { ...r, levels: r.levels.filter((_, i) => i !== index) }
+          : r
+      )
+    );
+  };
+
+  const confirmRemoveRubric = (rubricId) => {
+    setModal({ open: true, id: rubricId, type: "rubric" });
+  };
+
+  const removeRubric = (rubricId) => {
+    setRubrics((prev) => prev.filter((r) => r.id !== rubricId));
+  };
+
+  const startEdit = (model) => {
+    setEditingModel(model);
+    setName(model.name);
+    setConstructs(model.constructs || []);
+    setObservations(model.observations || []);
+    setRubrics(model.rubrics || []);
+    setScoringRule(model.scoringRule || {});
   };
 
   return (
     <Card title="Evidence Models">
-      <div className="flex gap-2 mb-3">
-        <input
-          className="border p-2 flex-1"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Model name"
-        />
+      <input
+        className="border p-2 w-full mb-2"
+        placeholder="Evidence Model name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+
+      <div className="mb-2">
+        <p className="text-sm mb-1">Constructs:</p>
+        {constructs.map((c) => (
+          <div key={c.id} className="text-sm mb-1 flex items-center gap-2">
+            <input
+              className="border p-1 flex-1"
+              value={c.text}
+              onChange={(e) => updateConstructText(c.id, e.target.value)}
+            />
+            <button
+              onClick={() => setModal({ open: true, id: c.id, type: "construct" })}
+              className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <input
+            className="border p-2 flex-1"
+            placeholder="New construct"
+            value={constructText}
+            onChange={(e) => setConstructText(e.target.value)}
+          />
+          <button
+            onClick={addConstruct}
+            className="px-2 py-1 bg-gray-500 text-white rounded"
+          >
+            + Add
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-2">
+        <p className="text-sm mb-1">Observations:</p>
+        {observations.map((o) => (
+          <div key={o.id} className="text-sm mb-1 flex items-center gap-2">
+            <input
+              className="border p-1 flex-1"
+              value={o.text}
+              onChange={(e) => updateObservationText(o.id, e.target.value)}
+            />
+            <button
+              onClick={() => setModal({ open: true, id: o.id, type: "observation" })}
+              className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
         <button
-          onClick={addModel}
-          className="px-3 py-1 bg-blue-500 text-white rounded"
+          onClick={addObservation}
+          className="px-2 py-1 bg-gray-500 text-white rounded"
         >
-          Add
+          + Observation
         </button>
       </div>
 
-      <div className="space-y-4">
-        {models.map((m) => {
-          const isLocked = confirmedIds.includes(m.id);
-          const isEditing = editingId === m.id;
-          const applyLockedStyle = isLocked && !isEditing;
-
-          return (
-            <div
-              key={m.id}
-              className={`border rounded-lg p-3 space-y-2 ${applyLockedStyle ? "bg-gray-200 opacity-70" : "bg-gray-50"}`}
-            >
-              <div className="flex justify-between items-center">
-                <h4 className="font-bold flex items-center gap-2">
-                  {m.modelLabel ? `${m.modelLabel}: ` : ""}{m.name}
-                  {applyLockedStyle && (
-                    <span className="text-green-600 text-xs font-semibold flex items-center gap-1">
-                      🔒 Confirmed
-                    </span>
-                  )}
-                </h4>
-                <div className="flex gap-2">
-                  {isEditing ? (
-                    <button
-                      onClick={() => confirmEvidence(m.id)}
-                      className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
-                    >
-                      Confirm
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setEditingId(m.id)}
-                      className="px-2 py-0.5 bg-yellow-500 text-white rounded text-xs"
-                    >
-                      Edit
-                    </button>
-                  )}
+      <div className="mb-2">
+        <p className="text-sm mb-1">Rubrics:</p>
+        {rubrics.map((r) => (
+          <div key={r.id} className="text-sm mb-2 p-2 border rounded">
+            <div className="flex items-center gap-2 mb-1">
+              <select
+                className="border p-1"
+                value={r.observationId}
+                onChange={(e) => updateRubricObservation(r.id, e.target.value)}
+              >
+                {observations.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.text}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => confirmRemoveRubric(r.id)}
+                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+              >
+                Remove Rubric
+              </button>
+            </div>
+            <div className="space-y-1">
+              {r.levels.map((lvl, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    className="border p-1 flex-1"
+                    value={lvl}
+                    onChange={(e) => updateRubricLevel(r.id, i, e.target.value)}
+                  />
                   <button
-                    onClick={() => setModal({ open: true, id: m.id })}
-                    className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+                    onClick={() => removeRubricLevel(r.id, i)}
+                    className="px-2 py-0.5 bg-red-400 text-white rounded text-xs"
                   >
-                    Remove
+                    ✕
                   </button>
                 </div>
-              </div>
-
-              {/* Constructs */}
-              <div>
-                <h5 className="font-semibold">Constructs</h5>
-                <ul className="text-sm ml-4 space-y-1">
-                  {m.constructs.map((c) => (
-                    <li key={c.id} className="flex justify-between items-center gap-2">
-                      <span>
-                        {c.text}
-                        {c.linkedCompetencyId && (
-                          <span className="ml-2 text-xs text-gray-600">
-                            ↔ {competencyLookup[c.linkedCompetencyId] || c.linkedCompetencyId}
-                          </span>
-                        )}
-                      </span>
-                      {isEditing && (
-                        <button
-                          className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                          onClick={() => updateModel(m.id, (mm) => ({
-                            constructs: mm.constructs.filter((cc) => cc.id !== c.id)
-                          }))}
-                        >
-                          −
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {isEditing && (
-                  <ConstructInput
-                    onAdd={(txt, comp) => updateModel(m.id, (mm) => ({
-                      constructs: [...mm.constructs, { id: uuidv4(), text: txt, linkedCompetencyId: comp || null }]
-                    }))}
-                    competencies={allCompetencies}
-                  />
-                )}
-              </div>
-
-              {/* Observations + Rubrics */}
-              <div>
-                <h5 className="font-semibold">Evidence Rules (or) Observations</h5>
-                <ul className="text-sm ml-4 space-y-1">
-                  {m.observations.map((o, i) => {
-                    const rubric = (m.rubrics || []).find(r => r.observationId === o.id);
-                    return (
-                      <li key={o.id || i} className="space-y-1">
-                        <div className="flex justify-between items-center">
-                          <span>{o.text}</span>
-                          {isEditing && (
-                            <div className="flex gap-2">
-                              <button
-                                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
-                                onClick={() => updateModel(m.id, (mm) => ({
-                                  observations: mm.observations.filter((_, idx) => idx !== i)
-                                }))}
-                              >
-                                −
-                              </button>
-                              {!rubric && (
-                                <button
-                                  className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
-                                  onClick={() => updateModel(m.id, (mm) => ({
-                                    rubrics: [...(mm.rubrics || []), { id: uuidv4(), observationId: o.id, levels: [] }]
-                                  }))}
-                                >
-                                  Add Rubric
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        {rubric && (
-                          <div className="ml-6 border p-2 rounded bg-white">
-                            <div className="flex justify-between items-center mb-1">
-                              <h6 className="font-medium text-sm">Rubric</h6>
-                              {isEditing ? (
-                                <button
-                                  onClick={() => updateModel(m.id, (mm) => ({
-                                    rubrics: mm.rubrics.filter(r => r.id !== rubric.id)
-                                  }))}
-                                  className="px-2 py-0.5 bg-red-400 text-white rounded text-xs"
-                                >
-                                  Remove Rubric
-                                </button>
-                              ) : null}
-                            </div>
-                            <ul className="text-xs ml-2 space-y-1">
-                              {rubric.levels.map((lvl, idx) => (
-                                <li key={idx}>
-                                  <b>Level {lvl.level}:</b> {lvl.description}
-                                </li>
-                              ))}
-                            </ul>
-                            {isEditing ? (
-                              <RubricLevelInput onAdd={(desc) => updateModel(m.id, (mm) => ({
-                                rubrics: mm.rubrics.map(r =>
-                                  r.id === rubric.id ? { ...r, levels: [...r.levels, { level: r.levels.length + 1, description: desc }] } : r
-                                )
-                              }))} />
-                            ) : null}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {isEditing && (
-                  <ObservationInput
-                    onAdd={(txt) => updateModel(m.id, (mm) => ({
-                      observations: [...mm.observations, { id: uuidv4(), text: txt }]
-                    }))}
-                  />
-                )}
-              </div>
-
-              {/* Scoring Rule */}
-              {isEditing ? (
-                <ScoringRuleEditor
-                  model={m}
-                  editingId={editingId}
-                  updateModel={updateModel}
-                  allowRemoveNode={true}
-                />
-              ) : (
-                  <div>
-                    <h5 className="font-semibold">Scoring Rule (or) Statistical Model</h5>
-                    <ul className="text-sm ml-4 space-y-1">
-                      {scoringRuleSummary(m)}
-                    </ul>
-                </div>
-              )}
+              ))}
+              <button
+                onClick={() => addRubricLevel(r.id)}
+                className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
+              >
+                + Level
+              </button>
             </div>
-          );
-        })}
+          </div>
+        ))}
+        <button
+          onClick={addRubric}
+          className="px-2 py-1 bg-purple-500 text-white rounded"
+        >
+          + Rubric
+        </button>
       </div>
+
+      <div className="mb-2">
+        <ScoringRuleEditor
+          rule={scoringRule || {}}
+          setRule={setScoringRule}
+          rubrics={rubrics}
+        />
+      </div>
+
+      <button
+        onClick={addOrUpdateModel}
+        className="px-3 py-1 bg-blue-500 text-white rounded"
+      >
+        {editingModel ? "Update Model" : "Add Model"}
+      </button>
+
+      <ul className="mt-2 text-sm space-y-1">
+        {models.map((m) => (
+          <li key={m.id} className="flex justify-between items-center">
+            <span>{m.modelLabel ? `${m.modelLabel}: ` : ""}{m.name}</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => startEdit(m)}
+                className="px-2 py-0.5 bg-yellow-500 text-white rounded text-xs"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => setModal({ open: true, id: m.id, type: "model" })}
+                className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+              >
+                Remove
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
 
       <Modal
         isOpen={modal.open}
-        onClose={() => setModal({ open: false, id: null })}
+        onClose={() => setModal({ open: false, id: null, type: null })}
         onConfirm={() => {
-          removeModel(modal.id);
-          setModal({ open: false, id: null });
+          const idToRemove = modal.id;
+          const type = modal.type;
+          setModal({ open: false, id: null, type: null });
+          if (type === "model") {
+            removeModel(idToRemove);
+          } else if (type === "rubric") {
+            removeRubric(idToRemove);
+          } else if (type === "construct") {
+            removeConstruct(idToRemove);
+          } else if (type === "observation") {
+            removeObservation(idToRemove);
+          }
         }}
         title="Confirm Delete"
-        message="Remove this evidence model? Linked tasks and sessions will also be removed."
+        message={
+          modal.type === "model"
+            ? "Remove this evidence model? Linked tasks and sessions will be removed."
+            : modal.type === "construct"
+            ? "Remove this construct?"
+            : modal.type === "observation"
+            ? "Remove this observation? Linked rubrics will also be removed."
+            : "Remove this rubric?"
+        }
       />
     </Card>
-  );
-}
-
-/* ---- Helpers ---- */
-function ConstructInput({ onAdd, competencies }) {
-  const [val, setVal] = useState("");
-  const [linked, setLinked] = useState("");
-  return (
-    <div className="flex gap-2 mt-1">
-      <input
-        className="border p-1 flex-1 text-sm"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        placeholder="New construct"
-      />
-      <select
-        className="border p-1 text-sm"
-        value={linked}
-        onChange={(e) => setLinked(e.target.value)}
-      >
-        <option value="">Link to competency</option>
-        {competencies.map((c) => (
-          <option key={c.id} value={c.id}>{c.label}</option>
-        ))}
-      </select>
-      <button
-        className="px-2 bg-green-500 text-white text-xs rounded"
-        onClick={() => {
-          if (!val.trim()) return;
-          onAdd(val, linked);
-          setVal("");
-          setLinked("");
-        }}
-      >
-        +
-      </button>
-    </div>
-  );
-}
-
-function ObservationInput({ onAdd }) {
-  const [val, setVal] = useState("");
-  return (
-    <div className="flex gap-2 mt-1">
-      <input
-        className="border p-1 flex-1 text-sm"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        placeholder="New Evidence Rule / Observation"
-      />
-      <button
-        className="px-2 bg-green-500 text-white text-xs rounded"
-        onClick={() => {
-          if (!val.trim()) return;
-          onAdd(val);
-          setVal("");
-        }}
-      >
-        +
-      </button>
-    </div>
-  );
-}
-
-function RubricLevelInput({ onAdd }) {
-  const [val, setVal] = useState("");
-  return (
-    <div className="flex gap-2 mt-1">
-      <input
-        className="border p-1 flex-1 text-xs"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        placeholder="New rubric level description"
-      />
-      <button
-        className="px-2 bg-green-500 text-white text-xs rounded"
-        onClick={() => {
-          if (!val.trim()) return;
-          onAdd(val);
-          setVal("");
-        }}
-      >
-        +
-      </button>
-    </div>
   );
 }

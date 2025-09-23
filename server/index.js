@@ -1,0 +1,26 @@
+import express from "express";
+import bodyParser from "body-parser";
+import sessionRoutes from "./routes/sessionRoutes.js";
+import tasksRoutes from "./routes/tasksRoutes.js";
+import itemsEvidenceRoutes from "./routes/itemsEvidenceRoutes.js";
+
+const app = express();
+app.use(bodyParser.json());
+
+// ------------------------------
+// API routes
+// ------------------------------
+app.use("/api/sessions", sessionRoutes);
+
+// Add more API routes here (tasks, evidence models, etc.)
+app.use("/api", itemsEvidenceRoutes);
+app.use("/api/tasks", tasksRoutes);
+// ------------------------------
+// No static serving here!
+// Nginx handles frontend build
+// ------------------------------
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ ECD Assessment API running at http://localhost:${PORT}`);
+});

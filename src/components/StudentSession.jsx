@@ -1,223 +1,164 @@
 import React, { useState, useEffect } from "react";
 import Card from "./Card";
 import Modal from "./Modal";
-import { loadDB, saveDB } from "../utils/db";
 
-export default function StudentSession({ task, onFinish }) {
+export default function StudentSession({ sessionId, onFinish }) {
+  const [session, setSession] = useState(null);
+  const [task, setTask] = useState(null);
+  const [items, setItems] = useState([]);
   const [answers, setAnswers] = useState({});
+  const [currentTaskId, setCurrentTaskId] = useState(null);
   const [result, setResult] = useState(null);
-  const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [feedback, setFeedback] = useState(null);
 
-  const db = loadDB();
-  const items = db.items.filter((i) => task.itemIds.includes(i.id));
-  const model = db.evidenceModels.find((m) => m.id === task.evidenceModelId);
-
+  // Load session + linked task + items
   useEffect(() => {
-    const session = db.sessions.find((s) => s.taskId === task.id && !s.isCompleted);
-    if (session) {
-      setAnswers(session.responses || {});
-      setCurrentTaskIndex(session.currentTaskIndex || 0);
-    }
-  }, []);
-
-  const goToNextTask = async () => {
-    try {
-      const res = await fetch(`/api/sessions/${task.id}/next-task`);
+    async function fetchSession() {
+      const res = await fetch(`/api/sessions/${sessionId}`);
       if (res.ok) {
-        const next = await res.json();
+        const data = await res.json();
+        setSession(data);
+        setAnswers(data.responses || {});
+
+        // fetch linked task
+        const tRes = await fetch(`/api/tasks/${data.taskId}`);
+        if (tRes.ok) {
+          const t = await tRes.json();
+          setTask(t);
+
+          // fetch all items
+          const iRes = await fetch(`/api/items`);
+          if (iRes.ok) {
+            const allItems = await iRes.json();
+            setItems(allItems.filter((i) => t.itemIds.includes(i.id)));
+          }
+        }
+
+        // load first/next item
+        const nextRes = await fetch(`/api/sessions/${sessionId}/next-task`);
+        const next = await nextRes.json();
         if (next && next.taskId) {
-          const nextIndex = items.findIndex((it) => it.id === next.taskId);
-          if (nextIndex >= 0) {
-            setCurrentTaskIndex(nextIndex);
-            return;
-          }
+          setCurrentTaskId(next.taskId);
         }
       }
-    } catch (err) {
-      console.warn("Adaptive sequencing not available, fallback to sequential.");
     }
+    fetchSession();
+  }, [sessionId]);
 
-    if (currentTaskIndex + 1 < items.length) {
-      setCurrentTaskIndex(currentTaskIndex + 1);
+  if (!session || !task) return <p>Loading session...</p>;
+
+  const submitAnswer = async (itemId, answer) => {
+    await fetch(`/api/sessions/${sessionId}/submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId: itemId, answer }),
+    });
+
+    // Ask backend what’s next
+    const nextRes = await fetch(`/api/sessions/${sessionId}/next-task`);
+    const next = await nextRes.json();
+
+    if (next && next.taskId) {
+      setCurrentTaskId(next.taskId);
     } else {
-      finishSession();
+      // No next → finish session
+      await fetch(`/api/sessions/${sessionId}/finish`, { method: "POST" });
+      const fb = await fetch(`/api/sessions/${sessionId}/feedback`).then((r) =>
+        r.json()
+      );
+      setFeedback(fb);
+      setResult({ score: session.score || 0, total: task.itemIds.length });
     }
   };
 
-  const finishSession = () => {
-    let score = 0;
-    let constructScores = {};
-    let scoresArray = [];
+  if (feedback) {
+    return (
+      <Card title="Session Complete 🎉">
+        <h3>Feedback</h3>
+        <ul>
+          {feedback.constructs.map((c) => (
+            <li key={c.name}>
+              {c.name}: {Math.round(c.score * 100)}% ({c.level})
+            </li>
+          ))}
+        </ul>
+        <h4>Recommendations</h4>
+        <ul>
+          {feedback.recommendations.map((r, i) => (
+            <li key={i}>{r}</li>
+          ))}
+        </ul>
+        <button
+          onClick={onFinish}
+          className="mt-4 px-3 py-1 bg-green-500 text-white rounded"
+        >
+          Exit
+        </button>
+      </Card>
+    );
+  }
 
-    items.forEach((it) => {
-      const ans = answers[it.id];
-
-      if (it.type === "simple" || it.type === "mcq") {
-        const correct = ans === it.correct;
-        if (correct) {
-          score++;
-          model.constructs.forEach((c) => {
-            constructScores[c.text] = (constructScores[c.text] || 0) + 1;
-            scoresArray.push({ constructId: c.id, value: 1 });
-          });
-        } else {
-          model.constructs.forEach((c) => {
-            scoresArray.push({ constructId: c.id, value: 0 });
-          });
-        }
-      }
-
-      if (it.type === "rubric") {
-        const rubric = model.rubrics.find((r) => r.observationId === it.observationId);
-        if (rubric) {
-          const selectedLevel = rubric.levels.find((lvl) => lvl.level === Number(ans));
-          if (selectedLevel) {
-            const value = selectedLevel.level / rubric.levels.length;
-            score += value;
-            model.constructs.forEach((c) => {
-              scoresArray.push({ constructId: c.id, value });
-            });
-          }
-        }
-      }
-    });
-
-    db.sessions.push({
-      id: `s${Date.now()}`,
-      taskId: task.id,
-      responses: answers,
-      score,
-      constructScores,
-      scores: scoresArray,
-      currentTaskIndex,
-      isCompleted: true,
-    });
-
-    saveDB(db);
-
-    setResult({ score, total: items.length });
-    setFeedback({
-      constructs: Object.keys(constructScores).map((c) => ({
-        name: c,
-        score: constructScores[c] / items.length,
-        level: constructScores[c] > items.length / 2 ? "Strong" : "Needs Work",
-      })),
-      recommendations: ["Review weak constructs", "Practice more tasks"],
-    });
-  };
-
-  const submit = () => {
-    const session = db.sessions.find((s) => s.taskId === task.id && !s.isCompleted);
-    if (session) {
-      session.responses = answers;
-      session.currentTaskIndex = currentTaskIndex;
-      saveDB(db);
-    }
-
-    goToNextTask();
-  };
+  const currentItem = items.find((i) => i.id === currentTaskId);
 
   return (
-    <Card title={`Task: ${task.title}`}>
+    <Card title={`Session: ${task.title}`}>
       <p className="text-sm mb-4">
-        Progress: Task {currentTaskIndex + 1} of {items.length}
+        Task {session.currentTaskIndex + 1} of {task?.itemIds?.length || 0}
       </p>
 
-      {items.map((it, idx) => {
-        if (idx !== currentTaskIndex) return null;
+      {currentItem ? (
+        <div className="mb-3">
+          <div className="font-medium mb-1">{currentItem.text}</div>
 
-        if (it.type === "simple") {
-          return (
-            <div key={it.id} className="mb-3">
-              <div className="font-medium mb-1">{it.text}</div>
-              <input
-                className="border p-1 w-full"
-                value={answers[it.id] || ""}
-                onChange={(e) =>
-                  setAnswers({ ...answers, [it.id]: e.target.value })
-                }
-                placeholder="Your answer"
-              />
-            </div>
-          );
-        }
+          {currentItem.type === "simple" && (
+            <input
+              className="border p-1 w-full mb-2"
+              value={answers[currentItem.id] || ""}
+              onChange={(e) =>
+                setAnswers({ ...answers, [currentItem.id]: e.target.value })
+              }
+              placeholder="Your answer"
+            />
+          )}
 
-        if (it.type === "mcq") {
-          return (
-            <div key={it.id} className="mb-3">
-              <div className="font-medium mb-1">{it.text}</div>
-              {it.choices.map((c) => (
+          {currentItem.type === "mcq" && (
+            <div className="mb-2">
+              {currentItem.choices.map((c) => (
                 <label key={c.id} className="block text-sm">
                   <input
                     type="radio"
-                    name={it.id}
-                    checked={answers[it.id] === c.id}
-                    onChange={() => setAnswers({ ...answers, [it.id]: c.id })}
-                  />{" "}
-                  {c.text}
+                    name={currentItem.id}
+                    checked={answers[currentItem.id] === c.id}
+                    onChange={() =>
+                      setAnswers({ ...answers, [currentItem.id]: c.id })
+                    }
+                  /> {c.text}
                 </label>
               ))}
             </div>
-          );
-        }
+          )}
 
-        if (it.type === "rubric") {
-          const rubric = model.rubrics.find((r) => r.observationId === it.observationId);
-          return (
-            <div key={it.id} className="mb-3">
-              <div className="font-medium mb-1">{it.text}</div>
-              {rubric ? (
-                <select
-                  className="border p-2 w-full"
-                  value={answers[it.id] || ""}
-                  onChange={(e) =>
-                    setAnswers({ ...answers, [it.id]: e.target.value })
-                  }
-                >
-                  <option value="">Select rubric level</option>
-                  {rubric.levels.map((lvl) => (
-                    <option key={lvl.level} value={lvl.level}>
-                      Level {lvl.level}: {lvl.description}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  ⚠️ No rubric defined for this observation
-                </p>
-              )}
-            </div>
-          );
-        }
-
-        return null;
-      })}
-
-      <button
-        onClick={submit}
-        className="px-3 py-1 bg-green-500 text-white rounded"
-      >
-        {currentTaskIndex + 1 < items.length ? "Next" : "Finish"}
-      </button>
+          <button
+            onClick={() =>
+              submitAnswer(currentItem.id, answers[currentItem.id] || "")
+            }
+            className="px-3 py-1 bg-blue-500 text-white rounded"
+          >
+            Submit
+          </button>
+        </div>
+      ) : (
+        <p>No task item available</p>
+      )}
 
       <Modal
         isOpen={!!result}
         onClose={() => setResult(null)}
-        onConfirm={() => {
-          setResult(null);
-          onFinish();
-        }}
+        onConfirm={onFinish}
         title="Assessment Complete"
         message={
           result
-            ? `You scored ${result.score.toFixed(2)} out of ${result.total}.` +
-              (feedback
-                ? "\n" +
-                  feedback.constructs
-                    .map((c) => `${c.name}: ${Math.round(c.score * 100)}% (${c.level})`)
-                    .join("; ")
-                : "")
+            ? `You scored ${result.score} out of ${result.total}.`
             : ""
         }
         confirmClass="bg-green-500 hover:bg-green-600 text-white"

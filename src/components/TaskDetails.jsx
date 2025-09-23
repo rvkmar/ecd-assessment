@@ -1,47 +1,88 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Card from "./Card";
-import { loadDB } from "../utils/db";
+import Modal from "./Modal";
 
 export default function TaskDetails({ task, onClose }) {
+  const [model, setModel] = useState(null);
+  const [items, setItems] = useState([]);
+
+  // Fetch evidence model + items via API
+  useEffect(() => {
+    if (task?.evidenceModelId) {
+      fetch(`/api/evidenceModels`)
+        .then((r) => r.json())
+        .then((models) => {
+          const found = models.find((m) => m.id === task.evidenceModelId);
+          setModel(found || null);
+        });
+    }
+    if (task?.itemIds?.length) {
+      fetch(`/api/items`)
+        .then((r) => r.json())
+        .then((allItems) =>
+          setItems(allItems.filter((i) => task.itemIds.includes(i.id)))
+        );
+    }
+  }, [task]);
+
   if (!task) return null;
 
-  const models = loadDB().evidenceModels;
-  const model = models.find((m) => m.id === task.evidenceModelId);
-  const modelName = model ? model.name : task.modelLabel || task.evidenceModelId;
-
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white rounded-lg shadow-lg w-2/3 max-h-[90vh] overflow-y-auto p-4">
-        <h2 className="text-xl font-bold mb-2">Task Details</h2>
-        <p className="mb-2"><strong>Title:</strong> {task.title}</p>
-        <p className="mb-2"><strong>Type:</strong> {task.type}</p>
-        <p className="mb-2"><strong>Evidence Model:</strong> {modelName}</p>
+    <Modal
+      isOpen={!!task}
+      onClose={onClose}
+      title={`Task Details: ${task.title}`}
+      message=""
+    >
+      <Card>
+        <p>
+          <strong>Model Label:</strong> {task.modelLabel || "-"}
+        </p>
+        <p>
+          <strong>Evidence Model:</strong> {model ? model.name : "Not found"}
+        </p>
+        <p>
+          <strong>Type:</strong> {task.type}
+        </p>
 
-        {task.type === "TaskModel" && task.taskModel && (
-          <Card title="Task Model">
-            <p><strong>Presentation Format:</strong> {task.taskModel.presentationFormat || "-"}</p>
-            <p><strong>Work Product:</strong> {task.taskModel.workProduct || "-"}</p>
-            <p><strong>Difficulty:</strong> {task.taskModel.difficulty || "-"}</p>
-          </Card>
+        {task.taskModel && (
+          <>
+            <p>
+              <strong>Presentation:</strong>{" "}
+              {task.taskModel.presentationFormat || "-"}
+            </p>
+            <p>
+              <strong>Work Product:</strong> {task.taskModel.workProduct || "-"}
+            </p>
+            <p>
+              <strong>Difficulty:</strong> {task.taskModel.difficulty || "-"}
+            </p>
+          </>
         )}
 
-        {task.type === "ActionModel" && task.actionModel && (
-          <Card title="Action Model">
-            <p><strong>Interactions:</strong> {task.actionModel.interactions || "-"}</p>
-            <p><strong>Rules:</strong> {task.actionModel.rules || "-"}</p>
-            <p><strong>Outcomes:</strong> {task.actionModel.outcomes || "-"}</p>
-          </Card>
+        {task.actionModel && (
+          <>
+            <p>
+              <strong>Interactions:</strong> {task.actionModel.interactions}
+            </p>
+            <p>
+              <strong>Rules:</strong> {task.actionModel.rules}
+            </p>
+            <p>
+              <strong>Outcomes:</strong> {task.actionModel.outcomes}
+            </p>
+          </>
         )}
 
-        <div className="mt-4 text-right">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-blue-500 text-white rounded"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+        <h4 className="mt-3 font-semibold">Items</h4>
+        <ul className="list-disc ml-5">
+          {items.map((it) => (
+            <li key={it.id}>
+              {it.type.toUpperCase()}: {it.text}
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </Modal>
   );
 }

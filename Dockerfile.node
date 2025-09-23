@@ -1,0 +1,14 @@
+FROM node:18-alpine AS api
+WORKDIR /app
+
+# Install deps
+COPY package*.json ./
+RUN npm ci
+
+# Copy only server code
+COPY server ./server
+COPY src/utils ./src/utils
+
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["node", "server/index.js"]

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { loadDB, saveDB, exportDB, importDB, clearDB } from "./utils/db";
+import { exportDB, importDB } from "./utils/db";
 import Modal from "./components/Modal";
 import ItemBank from "./components/ItemBank";
 import CompetencyModelBuilder from "./components/CompetencyModelBuilder";
@@ -12,42 +12,40 @@ import Toast from "./components/Toast";
 
 export default function App() {
   const [role, setRole] = useState("teacher");
-  const [activeTask, setActiveTask] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null);
   const [refreshFlag, setRefreshFlag] = useState(false);
   const [toast, setToast] = useState("");
   const [tab, setTab] = useState("items");
 
-  // 🆕 for handling Import error modal
   const [importError, setImportError] = useState("");
 
-  const tasks = loadDB().tasks;
-  const refresh = () => setRefreshFlag(!refreshFlag);
   const notify = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
   };
 
-    // Wrapper around importDB to catch validation errors
-  const handleImport = (e) => {
-    importDB(
-      e,
-      refresh,
-      (msg) => {
-        if (msg.startsWith("❌")) {
-          setImportError(msg); // show modal if invalid
-        } else {
-          notify(msg); // show toast if success
-        }
-      }
-    );
-    e.target.value = null; // reset
+  const refresh = () => setRefreshFlag(!refreshFlag);
+
+  // Create session via API
+  const startSession = async (taskId) => {
+    const res = await fetch("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId, studentId: "student1" }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setActiveSessionId(data.id);
+    } else {
+      notify("❌ Failed to start session");
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-blue-600">Assessment</h1>
-        <h3 className="text-lg font-semibold">v0.5.2</h3>
+        <h3 className="text-lg font-semibold">v0.8.1</h3>
         <p className="italic text-gray-600">A prototype by Ravikumar Rajabhather, Lecturer, DIET Chennai</p>
         <div className="flex items-center gap-2">
           <select
@@ -66,20 +64,6 @@ export default function App() {
               >
                 Export
               </button>
-
-              {/* <label className="px-3 py-1 bg-gray-500 text-white rounded cursor-pointer">
-                Import
-                <input
-                  type="file"
-                  accept="application/json"
-                  className="hidden"
-                  // onChange={(e) => {
-                  //   importDB(e, refresh, notify);
-                  //   e.target.value = null;
-                  // }}
-                  onChange={handleImport}
-                />
-              </label> */}
             </>
           )}
         </div>
@@ -90,50 +74,31 @@ export default function App() {
         <div className="bg-white rounded-xl shadow p-4">
           <div className="flex gap-4 border-b mb-4">
             <button
-              className={`pb-2 ${
-                tab === "items"
-                  ? "border-b-2 border-blue-500 font-semibold"
-                  : "text-gray-500"
-              }`}
+              className={`pb-2 ${tab === "items" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("items")}
             >
               Item Bank
             </button>
             <button
-              className={`pb-2 ${
-                tab === "competency"
-                  ? "border-b-2 border-blue-500 font-semibold"
-                  : "text-gray-500"
-              }`}
-             onClick={() => setTab("competency")}>
+              className={`pb-2 ${tab === "competency" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
+              onClick={() => setTab("competency")}
+            >
               Competencies
             </button>
             <button
-              className={`pb-2 ${
-                tab === "models"
-                  ? "border-b-2 border-blue-500 font-semibold"
-                  : "text-gray-500"
-              }`}
+              className={`pb-2 ${tab === "models" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("models")}
             >
               Evidences
             </button>
             <button
-              className={`pb-2 ${
-                tab === "tasks"
-                  ? "border-b-2 border-blue-500 font-semibold"
-                  : "text-gray-500"
-              }`}
+              className={`pb-2 ${tab === "tasks" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("tasks")}
             >
               Tasks/Actions
             </button>
             <button
-              className={`pb-2 ${
-                tab === "analytics"
-                  ? "border-b-2 border-blue-500 font-semibold"
-                  : "text-gray-500"
-              }`}
+              className={`pb-2 ${tab === "analytics" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("analytics")}
             >
               Analytics
@@ -149,34 +114,18 @@ export default function App() {
       )}
 
       {/* Student View */}
-      {role === "student" && !activeTask && (
+      {role === "student" && !activeSessionId && (
         <div className="bg-white rounded-xl shadow p-4">
           <h3 className="font-semibold mb-2">Available Tasks</h3>
-          {tasks.length === 0 ? (
-            <p>No tasks available</p>
-          ) : (
-            <ul className="space-y-2">
-              {tasks.map((t) => (
-                <li key={t.id} className="flex justify-between items-center">
-                  <span>{t.title}</span>
-                  <button
-                    onClick={() => setActiveTask(t)}
-                    className="px-2 py-1 bg-blue-500 text-white rounded"
-                  >
-                    Start
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <TaskList startSession={startSession} />
         </div>
       )}
 
-      {role === "student" && activeTask && (
+      {role === "student" && activeSessionId && (
         <StudentSession
-          task={activeTask}
+          sessionId={activeSessionId}
           onFinish={() => {
-            setActiveTask(null);
+            setActiveSessionId(null);
             refresh();
           }}
         />
@@ -193,5 +142,33 @@ export default function App() {
 
       <Toast message={toast} />
     </div>
+  );
+}
+
+function TaskList({ startSession }) {
+  const [tasks, setTasks] = useState([]);
+
+  useState(() => {
+    fetch("/api/tasks")
+      .then((r) => r.json())
+      .then((data) => setTasks(data || []));
+  }, []);
+
+  if (tasks.length === 0) return <p>No tasks available</p>;
+
+  return (
+    <ul className="space-y-2">
+      {tasks.map((t) => (
+        <li key={t.id} className="flex justify-between items-center">
+          <span>{t.title}</span>
+          <button
+            onClick={() => startSession(t.id)}
+            className="px-2 py-1 bg-blue-500 text-white rounded"
+          >
+            Start
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

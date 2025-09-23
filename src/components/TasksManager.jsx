@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { loadDB, saveDB, renumberRootTasks } from "../utils/db";
-
 import Card from "./Card";
 import Modal from "./Modal";
 import TaskDetails from "./TaskDetails";
 
 export default function TasksManager({ notify, refresh }) {
-  const [tasks, setTasks] = useState(loadDB().tasks);
+  const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
   const [selectedItems, setSelectedItems] = useState([]);
   const [modelId, setModelId] = useState("");
@@ -26,12 +24,34 @@ export default function TasksManager({ notify, refresh }) {
   // Toggle type
   const [taskType, setTaskType] = useState("TaskModel");
 
-  const items = loadDB().items;
-  const models = loadDB().evidenceModels;
+  const [items, setItems] = useState([]);
+  const [models, setModels] = useState([]);
 
+  // Load tasks/items/models from API
   useEffect(() => {
-    setTasks(loadDB().tasks);
+    fetch("/api/tasks")
+      .then((r) => r.json())
+      .then((data) => setTasks(data || []));
+
+    fetch("/api/items")
+      .then((r) => r.json())
+      .then((data) => setItems(data || []));
+
+    fetch("/api/evidenceModels")
+      .then((r) => r.json())
+      .then((data) => setModels(data || []));
   }, [refresh]);
+
+  // 🆕 Load single task from API when user clicks it
+  const openTaskDetails = async (taskId) => {
+    const res = await fetch(`/api/tasks/${taskId}`);
+    if (res.ok) {
+      const task = await res.json();
+      setDetailsTask(task);
+    } else {
+      notify("❌ Failed to load task details");
+    }
+  };
 
   const toggleItemSelection = (id) => {
     setSelectedItems((prev) =>
@@ -39,63 +59,59 @@ export default function TasksManager({ notify, refresh }) {
     );
   };
 
-  const addTask = () => {
-    if (!title.trim()) {
-      return notify("Enter a task title");
-    }
-    if (!selectedItems.length) {
-      return notify("Add question items");
-    }
-    if (!modelId) {
-      return notify("Select an evidence model");
-    }
-    const db = loadDB();
-    const model = models.find((m) => m.id === modelId);
-    db.tasks.push({
-      id: `t${Date.now()}`,
-      title,
-      itemIds: selectedItems,
-      evidenceModelId: modelId,
-      modelLabel: model ? model.name : modelId,
-      type: taskType,
-      taskModel:
-        taskType === "TaskModel"
-          ? { presentationFormat, workProduct, difficulty }
-          : null,
-      actionModel:
-        taskType === "ActionModel"
-          ? { interactions, rules, outcomes }
-          : null,
+  const addTask = async () => {
+    if (!title.trim()) return notify("Enter a task title");
+    if (!selectedItems.length) return notify("Add question items");
+    if (!modelId) return notify("Select an evidence model");
+
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        itemIds: selectedItems,
+        evidenceModelId: modelId,
+        type: taskType,
+        taskModel:
+          taskType === "TaskModel"
+            ? { presentationFormat, workProduct, difficulty }
+            : null,
+        actionModel:
+          taskType === "ActionModel"
+            ? { interactions, rules, outcomes }
+            : null,
+      }),
     });
 
-    renumberRootTasks(db);
-
-    saveDB(db);
-    setTasks(db.tasks);
-    setTitle("");
-    setSelectedItems([]);
-    setModelId("");
-    setPresentationFormat("");
-    setWorkProduct("");
-    setDifficulty("Medium");
-    setInteractions("");
-    setRules("");
-    setOutcomes("");
-    setTaskType("TaskModel");
-    notify("Task added.");
-    refresh();
+    if (res.ok) {
+      const newTask = await res.json();
+      setTasks((prev) => [...prev, newTask]);
+      setTitle("");
+      setSelectedItems([]);
+      setModelId("");
+      setPresentationFormat("");
+      setWorkProduct("");
+      setDifficulty("Medium");
+      setInteractions("");
+      setRules("");
+      setOutcomes("");
+      setTaskType("TaskModel");
+      notify("Task added.");
+      refresh();
+    } else {
+      notify("❌ Failed to add task");
+    }
   };
 
-  const removeTask = (id) => {
-    const db = loadDB();
-    db.tasks = db.tasks.filter((t) => t.id !== id);
-    if (db.sessions && db.sessions.length) {
-      db.sessions = db.sessions.filter((s) => s.taskId !== id);
+  const removeTask = async (id) => {
+    const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      notify("Task removed.");
+      refresh();
+    } else {
+      notify("❌ Failed to remove task");
     }
-    saveDB(db);
-    setTasks(db.tasks);
-    notify("Task removed.");
-    refresh();
   };
 
   return (
@@ -147,14 +163,14 @@ export default function TasksManager({ notify, refresh }) {
             className="border p-2 w-full mb-2"
             value={presentationFormat}
             onChange={(e) => setPresentationFormat(e.target.value)}
-            placeholder="Presentation format (e.g., computer, paper, tennis court)"
+            placeholder="Presentation format"
           />
 
           <input
             className="border p-2 w-full mb-2"
             value={workProduct}
             onChange={(e) => setWorkProduct(e.target.value)}
-            placeholder="Work product (e.g., essay, geometry proof)"
+            placeholder="Work product"
           />
 
           <select
@@ -175,21 +191,21 @@ export default function TasksManager({ notify, refresh }) {
             className="border p-2 w-full mb-2"
             value={interactions}
             onChange={(e) => setInteractions(e.target.value)}
-            placeholder="Interactions (e.g., player moves, inputs)"
+            placeholder="Interactions"
           />
 
           <textarea
             className="border p-2 w-full mb-2"
             value={rules}
             onChange={(e) => setRules(e.target.value)}
-            placeholder="Rules (e.g., scoring, constraints)"
+            placeholder="Rules"
           />
 
           <textarea
             className="border p-2 w-full mb-2"
             value={outcomes}
             onChange={(e) => setOutcomes(e.target.value)}
-            placeholder="Outcomes (e.g., win/lose conditions, performance)"
+            placeholder="Outcomes"
           />
         </>
       )}
@@ -205,7 +221,7 @@ export default function TasksManager({ notify, refresh }) {
         {tasks.map((t) => (
           <li key={t.id} className="flex justify-between items-center">
             <span
-              onClick={() => setDetailsTask(t)}
+              onClick={() => openTaskDetails(t.id)}
               className="cursor-pointer hover:underline"
             >
               {t.modelLabel ? `${t.modelLabel}: ` : ""}{t.title}
