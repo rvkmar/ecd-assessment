@@ -7,6 +7,7 @@ import competencyRoutes from "./routes/competencies.js";
 import linkRoutes from "./routes/links.js";
 
 const app = express();
+app.use(express.json());
 app.use(bodyParser.json());
 
 // ------------------------------

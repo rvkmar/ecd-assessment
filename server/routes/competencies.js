@@ -61,4 +61,14 @@ router.delete("/:id", (req, res) => {
   res.json({ removed: idsToRemove });
 });
 
+// Replace sync route with:
+router.post("/sync", (req, res) => {
+  competencies = req.body || [];
+  res.json({
+    message: "Competencies synced from localStorage",
+    count: competencies.length,
+  });
+});
+
+
 export default router;

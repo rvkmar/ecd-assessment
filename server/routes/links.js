@@ -34,4 +34,13 @@ router.delete("/:id", (req, res) => {
   res.json({ removed: id });
 });
 
+router.post("/sync", (req, res) => {
+  links = req.body || [];
+  res.json({
+    message: "Links synced from localStorage",
+    count: links.length,
+  });
+});
+
+
 export default router;

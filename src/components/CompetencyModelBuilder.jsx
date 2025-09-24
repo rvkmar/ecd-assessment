@@ -144,8 +144,51 @@ export default function CompetencyModels({ notify }) {
     notify("Competency and its children removed.");
   };
 
+  // 🔄 Sync localStorage → API
+  const syncToServer = async () => {
+    try {
+      // Sync competencies
+      const comps = localStorage.getItem("competencies");
+      if (comps) {
+        const res1 = await fetch("/api/competencies/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(JSON.parse(comps)),
+        });
+        const result1 = await res1.json();
+        notify(`Synced ${result1.count} competencies to server.`);
+      }
+
+      // Sync links
+      const links = localStorage.getItem("links");
+      if (links) {
+        const res2 = await fetch("/api/links/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(JSON.parse(links)),
+        });
+        const result2 = await res2.json();
+        notify(`Synced ${result2.count} links to server.`);
+      }
+    } catch (err) {
+      console.error("Sync failed:", err);
+      notify("Sync failed. See console.");
+    }
+  };
+
   return (
     <Card title="Competency Models">
+      <div className="flex justify-between items-right mb-4">
+        <h2 className="text-lg font-semibold">Competencies</h2>
+        {/* 🔃 Refresh/Sync button */}
+        <button
+          onClick={syncToServer}
+          title="Sync local data to server"
+          className="text-xl hover:text-green-600"
+        >
+          🔃
+        </button>
+      </div>
       <div className="space-y-2 mb-4">
         <input
           className="border p-2 w-full"
