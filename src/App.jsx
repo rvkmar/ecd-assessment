@@ -5,7 +5,7 @@ import Modal from "./components/Modal";
 // import ItemBank from "./components/ItemBank";
 import QuestionBank from "./components/QuestionBank";
 import CompetencyModelBuilder from "./components/competencies/CompetencyModelBuilder";
-import EvidenceModelBuilder from "./components/EvidenceModelBuilder";
+import EvidenceModelBuilder from "./components/evidences/EvidenceModelBuilder";
 import TasksManager from "./components/TasksManager";
 import StudentSession from "./components/StudentSession";
 import AnalyticsPanel from "./components/AnalyticsPanel";
