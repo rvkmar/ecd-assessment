@@ -2,7 +2,8 @@ import React, { useState } from "react";
 
 import { exportDB, importDB } from "./utils/db";
 import Modal from "./components/Modal";
-import ItemBank from "./components/ItemBank";
+// import ItemBank from "./components/ItemBank";
+import QuestionBank from "./components/QuestionBank";
 import CompetencyModelBuilder from "./components/CompetencyModelBuilder";
 import EvidenceModelBuilder from "./components/EvidenceModelBuilder";
 import TasksManager from "./components/TasksManager";
@@ -105,7 +106,8 @@ export default function App() {
             </button>
           </div>
 
-          {tab === "items" && <ItemBank notify={notify} />}
+          {/* {tab === "items" && <ItemBank notify={notify} />} */}
+          {tab === "items" && <QuestionBank notify={notify} />}
           {tab === "competency" && <CompetencyModelBuilder notify={notify} />}
           {tab === "models" && <EvidenceModelBuilder notify={notify} />}
           {tab === "tasks" && <TasksManager notify={notify} />}

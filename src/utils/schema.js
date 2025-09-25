@@ -1,49 +1,85 @@
-// Schema definitions for ecd-assessment app
-// Central place to define shape of entities used in db.js
+// schema.js
+// Evidence-Centered Design schema with adaptive assessment support
 
 export const schema = {
-  tasks: {
+  // 🔹 Question Bank
+  questions: {
     id: 'string',
-    name: 'string',
-    description: 'string',
-    modelLabel: 'string', // tmX
-    evidenceModelId: 'string',
+    type: 'string',            // mcq, constructed, open, rubric
+    stem: 'string',
+    options: 'array',          // [{id, text}]
+    correctOptionId: 'string',
+    metadata: 'object',
+
+    // Psychometric params (for IRT)
+    // a: 'number',               // discrimination
+    // b: 'number',               // difficulty
+    // c: 'number',               // guessing (optional, 3PL)
+
+    // For Bayesian Network mapping
+    bnObservationId: 'string',
+
     createdAt: 'date',
     updatedAt: 'date',
   },
 
-  evidenceModels: {
-    id: 'string',
-    name: 'string',
-    description: 'string',
-    modelLabel: 'string', // emX
-    constructs: 'array',  // NEW: each construct has id, text, competencyId
-    observations: 'array', // NEW: observation definitions
-    rubrics: 'array',
-    scoringRule: 'object', // NEW: scoring configuration
-    createdAt: 'date',
-    updatedAt: 'date',
-  },
-
+  // 🔹 Competency Models
   competencyModels: {
     id: 'string',
     name: 'string',
     description: 'string',
-    modelLabel: 'string', // cmX
-    parentIds: 'array',
-    levelLabel: 'string',
+    subCompetencyIds: 'array',         // references other competencies
+    crossLinkedCompetencyIds: 'array', // dependencies
     createdAt: 'date',
     updatedAt: 'date',
   },
 
+  // 🔹 Evidence Models
+  evidenceModels: {
+    id: 'string',
+    name: 'string',
+    description: 'string',
+
+    evidences: 'array',     // [{id, description}]
+    constructs: 'array',    // [{id, competencyId, evidenceId}]
+    observations: 'array',  // [{id, type, linkedQuestionIds}]
+    rubrics: 'array',       // rubric definitions
+
+    scoringModel: 'object', // {
+                            //   type: "IRT" | "BayesianNetwork" | "sum" | "average",
+                            //   weights: { obsId: weight },
+                            //   irtConfig: { model: "2PL"|"3PL" },
+                            //   bayesianConfig: { nodes: [], edges: [], CPTs: {} }
+                            // }
+
+    createdAt: 'date',
+    updatedAt: 'date',
+  },
+
+  // 🔹 Task Models (blueprints)
   taskModels: {
     id: 'string',
     name: 'string',
     description: 'string',
+    subTaskIds: 'array',
+    evidenceModelIds: 'array',
+    actions: 'array',       // attempt_question, simulation, discussion, etc.
+    difficulty: 'string',   // easy | medium | hard
     createdAt: 'date',
     updatedAt: 'date',
   },
 
+  // 🔹 Task Instances (delivered to session)
+  tasks: {
+    id: 'string',
+    taskModelId: 'string',
+    questionId: 'string',
+    generatedEvidenceIds: 'array',
+    createdAt: 'date',
+    updatedAt: 'date',
+  },
+
+  // 🔹 Students
   students: {
     id: 'string',
     name: 'string',
@@ -51,30 +87,40 @@ export const schema = {
     updatedAt: 'date',
   },
 
+  // 🔹 Student Sessions (runtime state)
   sessions: {
     id: 'string',
     studentId: 'string',
-    tasks: 'array', // array of taskIds
+    taskIds: 'array',
     currentTaskIndex: 'number',
     responses: 'array', // { taskId, answer, timestamp }
+
+    // Adaptive state
+    irtTheta: 'number',     // evolving ability estimate
+    bnPosteriors: 'object', // { nodeId: probability }
+
     isCompleted: 'boolean',
     startedAt: 'date',
     updatedAt: 'date',
   },
 };
 
-// Utility to validate an object against schema definition
 export function validateEntity(collection, obj) {
   const rules = schema[collection];
   if (!rules) return { valid: false, errors: ['Unknown collection'] };
   const errors = [];
 
   for (const key of Object.keys(rules)) {
-    if (obj[key] === undefined) {
-      errors.push(`Missing field: ${key}`);
+    const expected = rules[key];
+
+    // ✅ allow null for optional fields
+    if (obj[key] === undefined || obj[key] === null) {
+      if (["id", "type", "stem", "createdAt", "updatedAt"].includes(key)) {
+        errors.push(`Missing field: ${key}`);
+      }
       continue;
     }
-    const expected = rules[key];
+
     if (expected === 'string' && typeof obj[key] !== 'string') {
       errors.push(`${key} should be string`);
     }
@@ -93,6 +139,28 @@ export function validateEntity(collection, obj) {
     if (expected === 'date') {
       const d = new Date(obj[key]);
       if (isNaN(d.getTime())) errors.push(`${key} should be date`);
+    }
+  }
+
+  // ✅ Conditional rules for questions
+  if (collection === "questions") {
+    // Constructed / Open → expectedAnswer required
+    if (["constructed", "open"].includes(obj.type)) {
+      if (!obj.metadata || !obj.metadata.expectedAnswer || obj.metadata.expectedAnswer.trim() === "") {
+        errors.push("expectedAnswer is required in metadata for constructed/open questions");
+      }
+    }
+
+    // MCQ → at least one option and valid correctOptionId
+    if (obj.type === "mcq") {
+      if (!obj.options || obj.options.length === 0) {
+        errors.push("MCQ questions must have at least one option");
+      }
+      if (!obj.correctOptionId) {
+        errors.push("MCQ questions must have a correctOptionId");
+      } else if (!obj.options.some(o => o.id === obj.correctOptionId)) {
+        errors.push("correctOptionId must match one of the option IDs");
+      }
     }
   }
 
