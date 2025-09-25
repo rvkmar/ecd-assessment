@@ -9,6 +9,8 @@ export default function ConstructEditor({
   setObservations,
   rubrics,
   setRubrics,
+  removeConstruct,     // ✅ cascade-aware from parent
+  removeObservation,   // ✅ cascade-aware from parent
 }) {
   return (
     <div>
@@ -41,6 +43,7 @@ export default function ConstructEditor({
             setObservations={setObservations}
             rubrics={rubrics}
             setRubrics={setRubrics}
+            removeObservation={removeObservation} // ✅ cascade-aware
           />
         </div>
       ))}

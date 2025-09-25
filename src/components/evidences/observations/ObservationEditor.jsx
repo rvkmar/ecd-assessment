@@ -7,6 +7,7 @@ export default function ObservationEditor({
   setObservations,
   rubrics,
   setRubrics,
+  removeObservation,   // ✅ cascade-aware
 }) {
   const constructObs = observations.filter(o => o.constructId === constructId);
 
@@ -22,10 +23,19 @@ export default function ObservationEditor({
               setObservations(observations.map(oo => oo.id === o.id ? { ...oo, text: e.target.value } : oo))
             }
           />
+
+          <button
+              className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+              onClick={() => removeObservation(o.id)}   // ✅ cascade cleanup
+            >
+              Remove
+          </button>
+
           <RubricEditor
             observationId={o.id}
             rubrics={rubrics}
             setRubrics={setRubrics}
+            removeRubric={removeRubric}   // ✅ cascade-aware
           />
         </div>
       ))}

@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function RubricEditor({ observationId, rubrics, setRubrics }) {
+export default function RubricEditor({ observationId, rubrics, setRubrics, removeRubric }) {
   const obsRubrics = rubrics.filter(r => r.observationId === observationId);
 
   return (
@@ -22,19 +22,36 @@ export default function RubricEditor({ observationId, rubrics, setRubrics }) {
               }
             />
           ))}
-          <button
-            onClick={() =>
-              setRubrics(rubrics.map(rr =>
-                rr.id === r.id ? { ...rr, levels: [...rr.levels, "New level"] } : rr
-              ))
-            }
-          >
-            + Level
-          </button>
+
+          <div className="flex gap-2 mt-1">
+            <button
+              className="px-2 py-0.5 bg-green-500 text-white rounded text-xs"
+              onClick={() =>
+                setRubrics(rubrics.map(rr =>
+                  rr.id === r.id ? { ...rr, levels: [...rr.levels, "New level"] } : rr
+                ))
+              }
+            >
+              + Level
+            </button>
+            <button
+              className="px-2 py-0.5 bg-red-500 text-white rounded text-xs"
+              onClick={() => removeRubric(r.id)}   // ✅ cascade cleanup
+            >
+              Remove Rubric
+            </button>
+          </div>
         </div>
       ))}
+
       <button
-        onClick={() => setRubrics([...rubrics, { id: Date.now().toString(), observationId, levels: ["Level 1", "Level 2"] }])}
+        className="px-2 py-1 bg-purple-500 text-white rounded text-xs"
+        onClick={() =>
+          setRubrics([
+            ...rubrics,
+            { id: Date.now().toString(), observationId, levels: ["Level 1", "Level 2"] }
+          ])
+        }
       >
         + Rubric
       </button>

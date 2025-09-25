@@ -20,34 +20,52 @@ router.post("/", (req, res) => {
 
   // ✅ Validate competencyId for constructs
   for (const c of constructs || []) {
-    if (c.competencyId && !db.competencyModels.find(cm => cm.id === c.competencyId)) {
-      return res.status(400).json({ error: `Invalid competencyId: ${c.competencyId}` });
+    if (
+      c.competencyId &&
+      !db.competencyModels.find((cm) => cm.id === c.competencyId)
+    ) {
+      return res
+        .status(400)
+        .json({ error: `Invalid competencyId: ${c.competencyId}` });
     }
   }
 
-  // ✅ Validate weights
-  const obsIds = new Set((observations || []).map(o => o.id));
-  const weights = (scoringRule || {}).weights || {};
-  for (const wId of Object.keys(weights)) {
-    if (!obsIds.has(wId)) {
-      return res.status(400).json({ error: `Invalid weight reference: ${wId}` });
-    }
-  }
-
-  // ✅ Validate rubrics: each rubric.observationId must exist in observations
+  // ✅ Validate rubric.observationId
+  const obsIds = new Set((observations || []).map((o) => o.id));
   for (const r of rubrics || []) {
     if (!obsIds.has(r.observationId)) {
-      return res.status(400).json({ error: `Invalid rubric observationId: ${r.observationId}` });
+      return res
+        .status(400)
+        .json({ error: `Invalid rubric observationId: ${r.observationId}` });
     }
+  }
+
+  // ✅ Validate weights (obsId, rubricId, or rubricId:levelIndex)
+  const rubricMap = new Map(
+    (rubrics || []).map((r) => [r.id, r.levels || []])
+  );
+  const validObsIds = new Set(obsIds);
+  const validRubricIds = new Set(rubricMap.keys());
+
+  for (const wId of Object.keys((scoringRule || {}).weights || {})) {
+    if (validObsIds.has(wId)) continue;
+    if (validRubricIds.has(wId)) continue;
+
+    const [rubricId, lvlIdxStr] = wId.split(":");
+    const levels = rubricMap.get(rubricId);
+    const idx = parseInt(lvlIdxStr, 10);
+    if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) continue;
+
+    return res.status(400).json({ error: `Invalid weight reference: ${wId}` });
   }
 
   const newModel = {
     id: `em${Date.now()}`,
     name,
-    constructs: (constructs || []).map(c => ({
+    constructs: (constructs || []).map((c) => ({
       id: c.id || `c${Date.now()}`,
       text: c.text,
-      competencyId: c.competencyId || ""
+      competencyId: c.competencyId || "",
     })),
     observations: observations || [],
     rubrics: rubrics || [],
@@ -61,7 +79,6 @@ router.post("/", (req, res) => {
   res.status(201).json(newModel);
 });
 
-
 // ------------------------------
 // PUT /api/evidenceModels/:id
 // ------------------------------
@@ -71,63 +88,83 @@ router.put("/:id", (req, res) => {
   const db = loadDB();
 
   const idx = db.evidenceModels.findIndex((m) => m.id === id);
-  if (idx === -1) return res.status(404).json({ error: "Evidence model not found" });
+  if (idx === -1)
+    return res.status(404).json({ error: "Evidence model not found" });
 
   // ✅ Validate competencyId for constructs
   for (const c of updates.constructs || []) {
-    if (c.competencyId && !db.competencyModels.find(cm => cm.id === c.competencyId)) {
-      return res.status(400).json({ error: `Invalid competencyId: ${c.competencyId}` });
-    }
-  }
-
-  // ✅ Validate weights against updated or existing observations
-  const obsIds = new Set((updates.observations || db.evidenceModels[idx].observations || []).map(o => o.id));
-  const weights = (updates.scoringRule || {}).weights || {};
-  for (const wId of Object.keys(weights)) {
-    if (!obsIds.has(wId)) {
-      return res.status(400).json({ error: `Invalid weight reference: ${wId}` });
-    }
-  }
-
-  // ✅ Validate rubrics: each rubric.observationId must exist in observations
-  for (const r of updates.rubrics || []) {
-    if (!obsIds.has(r.observationId)) {
-      return res.status(400).json({ error: `Invalid rubric observationId: ${r.observationId}` });
+    if (
+      c.competencyId &&
+      !db.competencyModels.find((cm) => cm.id === c.competencyId)
+    ) {
+      return res
+        .status(400)
+        .json({ error: `Invalid competencyId: ${c.competencyId}` });
     }
   }
 
   // ✅ Build sets for construct & observation cleanup
   const remainingConstructIds = new Set(
-    (updates.constructs || db.evidenceModels[idx].constructs || []).map(c => c.id)
+    (updates.constructs || db.evidenceModels[idx].constructs || []).map(
+      (c) => c.id
+    )
   );
 
-  // Keep only observations whose construct still exists
-  const cleanedObservations = (updates.observations || db.evidenceModels[idx].observations || [])
-    .filter(o => remainingConstructIds.has(o.constructId));
+  // Keep only observations tied to valid constructs
+  const cleanedObservations = (
+    updates.observations || db.evidenceModels[idx].observations || []
+  ).filter((o) => remainingConstructIds.has(o.constructId));
 
-  // Update obsIds set for cascading
-  const remainingObsIds = new Set(cleanedObservations.map(o => o.id));
+  const remainingObsIds = new Set(cleanedObservations.map((o) => o.id));
 
-  // Clean rubrics (only those tied to valid observations)
-  const cleanedRubrics = (updates.rubrics || db.evidenceModels[idx].rubrics || [])
-    .filter(r => remainingObsIds.has(r.observationId));
+  // Keep only rubrics tied to valid observations
+  const cleanedRubrics = (
+    updates.rubrics || db.evidenceModels[idx].rubrics || []
+  ).filter((r) => remainingObsIds.has(r.observationId));
 
-  // Clean weights (only those tied to valid observations)
+  // ✅ Validate rubrics: each rubric.observationId must exist
+  for (const r of cleanedRubrics) {
+    if (!remainingObsIds.has(r.observationId)) {
+      return res
+        .status(400)
+        .json({ error: `Invalid rubric observationId: ${r.observationId}` });
+    }
+  }
+
+  // ✅ Cascade cleanup: weights
+  const rubricMap = new Map(cleanedRubrics.map((r) => [r.id, r.levels || []]));
+  const validRubricIds = new Set(rubricMap.keys());
+
   let cleanedWeights = {};
-  const rawWeights = (updates.scoringRule || db.evidenceModels[idx].scoringRule || {}).weights || {};
-  for (const [obsId, w] of Object.entries(rawWeights)) {
-    if (remainingObsIds.has(obsId)) {
-      cleanedWeights[obsId] = w;
+  const rawWeights =
+    (updates.scoringRule || db.evidenceModels[idx].scoringRule || {}).weights ||
+    {};
+
+  for (const [wId, w] of Object.entries(rawWeights)) {
+    if (remainingObsIds.has(wId)) {
+      cleanedWeights[wId] = w; // observation-level
+    } else if (validRubricIds.has(wId)) {
+      cleanedWeights[wId] = w; // rubric-level
+    } else {
+      // rubric-level weight: rubricId:levelIndex
+      const [rubricId, lvlIdxStr] = wId.split(":");
+      const levels = rubricMap.get(rubricId);
+      const idx = parseInt(lvlIdxStr, 10);
+      if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) {
+        cleanedWeights[wId] = w;
+      }
     }
   }
 
   const updatedModel = {
     ...db.evidenceModels[idx],
     ...updates,
-    constructs: (updates.constructs || db.evidenceModels[idx].constructs || []).map(c => ({
+    constructs: (
+      updates.constructs || db.evidenceModels[idx].constructs || []
+    ).map((c) => ({
       id: c.id || `c${Date.now()}`,
       text: c.text,
-      competencyId: c.competencyId || ""
+      competencyId: c.competencyId || "",
     })),
     observations: cleanedObservations,
     rubrics: cleanedRubrics,
@@ -137,15 +174,10 @@ router.put("/:id", (req, res) => {
     },
   };
 
-  if (!updatedModel.scoringRule) {
-    updatedModel.scoringRule = {};
-  }
-
   db.evidenceModels[idx] = updatedModel;
   saveDB(db);
   res.json(updatedModel);
 });
-
 
 // ------------------------------
 // DELETE /api/evidenceModels/:id

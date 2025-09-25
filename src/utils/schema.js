@@ -164,5 +164,27 @@ export function validateEntity(collection, obj) {
     }
   }
 
+  // ✅ Conditional rules for evidenceModels
+  if (collection === "evidenceModels") {
+    const obsIds = new Set((obj.observations || []).map(o => o.id));
+    const rubricMap = new Map((obj.rubrics || []).map(r => [r.id, r.levels || []]));
+    const validObsIds = new Set(obsIds);
+    const validRubricIds = new Set(rubricMap.keys());
+
+    if (obj.scoringModel?.weights) {
+      for (const wId of Object.keys(obj.scoringModel.weights)) {
+        if (validObsIds.has(wId)) continue; // observation weight
+        if (validRubricIds.has(wId)) continue; // rubric weight
+        // rubric-level weight: r.id:levelIndex
+        const [rubricId, lvlIdxStr] = wId.split(":");
+        const levels = rubricMap.get(rubricId);
+        const idx = parseInt(lvlIdxStr, 10);
+        if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) continue;
+
+        errors.push(`Weight reference ${wId} is not a valid observationId, rubricId, or rubric-level key`);
+      }
+    }
+  }
+
   return { valid: errors.length === 0, errors };
 }
