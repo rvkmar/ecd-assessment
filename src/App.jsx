@@ -42,38 +42,35 @@ export default function App() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 p-6 space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-blue-600">Assessment</h1>
-        <h3 className="text-lg font-semibold">v0.8.1</h3>
-        <p className="italic text-gray-600">A prototype by Ravikumar Rajabhather, Lecturer, DIET Chennai</p>
-        <div className="flex items-center gap-2">
-          <select
-            className="border p-2 rounded"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
+return (
+  <div className="min-h-screen bg-slate-50 p-6 space-y-4 flex flex-col pb-16">
+    {/* Header */}
+    <div className="flex justify-between items-center">
+      <h1 className="text-2xl font-bold text-blue-600">Assessment</h1>
+      <div className="flex items-center gap-2">
+        <select
+          className="border p-2 rounded"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        >
+          <option value="teacher">Teacher</option>
+          <option value="student">Student</option>
+        </select>
+        {role === "teacher" && (
+          <button
+            onClick={exportDB}
+            className="px-3 py-1 bg-purple-500 text-white rounded"
           >
-            <option value="teacher">Teacher</option>
-            <option value="student">Student</option>
-          </select>
-          {role === "teacher" && (
-            <>
-              <button
-                onClick={exportDB}
-                className="px-3 py-1 bg-purple-500 text-white rounded"
-              >
-                Export
-              </button>
-            </>
-          )}
-        </div>
+            Export
+          </button>
+        )}
       </div>
+    </div>
 
       {/* Teacher Tabs */}
       {role === "teacher" && (
         <div className="bg-white rounded-xl shadow p-4">
-          <div className="flex gap-4 border-b mb-4">
+          <div className="flex flex-wrap sm:flex-nowrap gap-4 border-b mb-4">
             <button
               className={`pb-2 ${tab === "items" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("items")}
@@ -106,7 +103,7 @@ export default function App() {
             </button>
           </div>
 
-          {/* {tab === "items" && <ItemBank notify={notify} />} */}
+          {/* existing conditional renders */}
           {tab === "items" && <QuestionBank notify={notify} />}
           {tab === "competency" && <CompetencyModelBuilder notify={notify} />}
           {tab === "models" && <EvidenceModelBuilder notify={notify} />}
@@ -132,6 +129,13 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Footer */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-100 border-t py-2 text-center text-xs text-gray-500">
+        <p>
+          v0.8.1 · A prototype by Ravikumar Rajabhather, Lecturer, DIET Chennai
+        </p>
+      </footer>
 
       {/* 🆕 Import Error Modal */}
       <Modal
