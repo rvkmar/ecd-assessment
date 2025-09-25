@@ -11,11 +11,26 @@ const CompetencyLinker = ({ competencies = [], onLinksChange, notify }) => {
   const [destination, setDestination] = useState("");
   const [modalIndex, setModalIndex] = useState(null);
   const [showLinker, setShowLinker] = useState(false);
+  const [prevLinks, setPrevLinks] = useState([]);
 
-  useEffect(() => {
+  // useEffect(() => {
+  //   getLinks().then((savedLinks) => {
+  //     setLinks(savedLinks);
+  //     if (onLinksChange) onLinksChange(savedLinks);
+  //   });
+  // }, [onLinksChange]);
+
+    useEffect(() => {
     getLinks().then((savedLinks) => {
       setLinks(savedLinks);
-      if (onLinksChange) onLinksChange(savedLinks);
+
+      if (onLinksChange) {
+        if (savedLinks && savedLinks.length > 0) {
+          onLinksChange(savedLinks);
+        } else {
+          console.log("[CompetencyLinker] Skipping empty links update");
+        }
+      }
     });
   }, [onLinksChange]);
 

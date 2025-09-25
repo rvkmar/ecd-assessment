@@ -2,9 +2,8 @@ import express from "express";
 import bodyParser from "body-parser";
 import sessionRoutes from "./routes/sessionRoutes.js";
 import tasksRoutes from "./routes/tasksRoutes.js";
-// import itemsEvidenceRoutes from "./routes/itemsEvidenceRoutes.js";
 import questionsRoutes from "./routes/questionsRoutes.js";
-import competencyRoutes from "./routes/competencies.js";
+import competencyRoutes from "./routes/competencyModels.js";
 import linkRoutes from "./routes/links.js";
 
 const app = express();
@@ -17,7 +16,7 @@ app.use(bodyParser.json());
 app.use("/api/sessions", sessionRoutes);
 
 // Add more API routes here (tasks, evidence models, etc.)
-// app.use("/api", itemsEvidenceRoutes);
+
 app.use("/api", questionsRoutes);
 app.use("/api/tasks", tasksRoutes);
 app.use("/api/competencies", competencyRoutes);

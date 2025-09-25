@@ -4,7 +4,7 @@ import { exportDB, importDB } from "./utils/db";
 import Modal from "./components/Modal";
 // import ItemBank from "./components/ItemBank";
 import QuestionBank from "./components/QuestionBank";
-import CompetencyModelBuilder from "./components/CompetencyModelBuilder";
+import CompetencyModelBuilder from "./components/competencies/CompetencyModelBuilder";
 import EvidenceModelBuilder from "./components/EvidenceModelBuilder";
 import TasksManager from "./components/TasksManager";
 import StudentSession from "./components/StudentSession";
