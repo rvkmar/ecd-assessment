@@ -1,60 +1,34 @@
-import React, { useState, useEffect } from "react";
-import {
-  getLinks,
-  addLink,
-  deleteLink,
-} from "../utils/dualStorageUtils";
+import React, { useState } from "react";
 
-const CompetencyLinker = ({ competencies = [], onLinksChange, notify }) => {
-  const [links, setLinks] = useState([]);
+const CompetencyLinker = ({ models = [], competencies = [], links = [], saveAll, notify }) => {
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
   const [modalIndex, setModalIndex] = useState(null);
   const [showLinker, setShowLinker] = useState(false);
-  const [prevLinks, setPrevLinks] = useState([]);
 
-  // useEffect(() => {
-  //   getLinks().then((savedLinks) => {
-  //     setLinks(savedLinks);
-  //     if (onLinksChange) onLinksChange(savedLinks);
-  //   });
-  // }, [onLinksChange]);
-
-    useEffect(() => {
-    getLinks().then((savedLinks) => {
-      setLinks(savedLinks);
-
-      if (onLinksChange) {
-        if (savedLinks && savedLinks.length > 0) {
-          onLinksChange(savedLinks);
-        } else {
-          console.log("[CompetencyLinker] Skipping empty links update");
-        }
-      }
-    });
-  }, [onLinksChange]);
-
-  const handleLink = async () => {
+  // --- Add new crosslink ---
+  const handleLink = () => {
     if (source && destination && source !== destination) {
-      const updated = await addLink({ sourceId: source, destId: destination });
-      setLinks(updated);
-      if (onLinksChange) onLinksChange(updated);
-      if (notify) notify("Link added.");
+      const newLink = { id: `l${Date.now()}`, sourceId: source, destId: destination };
+      const updated = [...links, newLink];
+      saveAll(models, competencies, updated);
+      notify?.("Link added.");
       setSource("");
       setDestination("");
     }
   };
 
-  const handleRemove = async (index) => {
+  // --- Remove crosslink ---
+  const handleRemove = (index) => {
     const id = links[index].id;
-    const updated = await deleteLink(id);
-    setLinks(updated);
-    if (onLinksChange) onLinksChange(updated);
-    if (notify) notify("Link removed.");
+    const updated = links.filter((l) => l.id !== id);
+    saveAll(models, competencies, updated);
+    notify?.("Link removed.");
   };
 
   const isLinkDisabled = !source || !destination || source === destination;
 
+  // --- Label builder (shows model name + depth) ---
   const buildLabel = (c) => {
     if (!c) return "";
 
@@ -67,22 +41,20 @@ const CompetencyLinker = ({ competencies = [], onLinksChange, notify }) => {
       current = competencies.find((p) => p.id === current.parentId);
     }
 
-    const modelPrefix = root.modelLabel || "cm?";
+    const model = models.find((m) => m.id === root.modelId);
+    const modelPrefix = model ? model.name : "Unknown Model";
 
-    if (depth === 0) {
-      return `${modelPrefix}: ${c.name}`;
-    }
-
-    return `${modelPrefix} | Level ${depth}: ${c.name}`;
+    return depth === 0
+      ? `${modelPrefix}: ${c.name}`
+      : `${modelPrefix} | Level ${depth}: ${c.name}`;
   };
-
-  const formatLabel = (c) => buildLabel(c);
 
   return (
     <div
       className="competency-linker"
       style={{ marginTop: "1rem", padding: "1rem", border: "1px solid #ccc", borderRadius: "8px" }}
     >
+      {/* Toggle */}
       <div className="flex items-right gap-3 mb-4">
         <span className="text-sm font-medium text-gray-700">Crosslink Competencies</span>
         <button
@@ -101,14 +73,15 @@ const CompetencyLinker = ({ competencies = [], onLinksChange, notify }) => {
         </button>
       </div>
 
+      {/* Linker UI */}
       {showLinker && (
         <>
-          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+          <div className="flex gap-4 mb-4">
             <select value={source} onChange={(e) => setSource(e.target.value)}>
               <option value="">Select Source</option>
               {competencies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {formatLabel(c)}
+                  {buildLabel(c)}
                 </option>
               ))}
             </select>
@@ -117,7 +90,7 @@ const CompetencyLinker = ({ competencies = [], onLinksChange, notify }) => {
               <option value="">Select Destination</option>
               {competencies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {formatLabel(c)}
+                  {buildLabel(c)}
                 </option>
               ))}
             </select>
@@ -131,15 +104,16 @@ const CompetencyLinker = ({ competencies = [], onLinksChange, notify }) => {
             </button>
           </div>
 
+          {/* Existing Links */}
           <div className="linked-competencies">
-            <h4>Crosslinked Competencies</h4>
-            <ul>
+            <h4 className="font-medium mb-2">Crosslinked Competencies</h4>
+            <ul className="space-y-1 text-sm">
               {links.map((l, idx) => {
                 const src = competencies.find((c) => c.id === l.sourceId);
                 const dest = competencies.find((c) => c.id === l.destId);
                 return (
                   <li key={l.id || idx} className="flex items-center gap-2">
-                    {formatLabel(src)} → {formatLabel(dest)}
+                    {buildLabel(src)} → {buildLabel(dest)}
                     <button
                       onClick={() => setModalIndex(idx)}
                       className="text-xs bg-red-500 text-white px-2 py-0.5 rounded"
@@ -149,11 +123,13 @@ const CompetencyLinker = ({ competencies = [], onLinksChange, notify }) => {
                   </li>
                 );
               })}
+              {links.length === 0 && <li className="text-gray-500">No crosslinks yet</li>}
             </ul>
           </div>
         </>
       )}
 
+      {/* Confirmation Modal */}
       {modalIndex !== null && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
           <div className="bg-white p-4 rounded shadow-md w-64 relative z-50">

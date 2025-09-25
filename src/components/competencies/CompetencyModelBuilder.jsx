@@ -202,11 +202,10 @@ export default function CompetencyModelBuilder({ notify }) {
         <div className="md:col-span-2">
           {renderView()}
           <CompetencyLinker
+            models={models}
             competencies={competencies}
-            onLinksChange={(l) => {
-              console.log("[CompetencyLinker] onLinksChange fired", l);
-              saveAll(models, competencies, l);
-            }}
+            links={links}
+            saveAll={saveAll}
             notify={notify}
           />
         </div>
