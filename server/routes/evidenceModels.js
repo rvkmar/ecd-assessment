@@ -4,85 +4,9 @@ import { loadDB, saveDB } from "../../src/utils/db-server.js";
 const router = express.Router();
 
 // ------------------------------
-// GET /api/items
-// ------------------------------
-router.get("/items", (req, res) => {
-  const db = loadDB();
-  res.json(db.items || []);
-});
-
-// ------------------------------
-// POST /api/items
-// ------------------------------
-// body: { text, type, choices, correct, observationId }
-router.post("/items", (req, res) => {
-  const { text, type, choices, correct, observationId } = req.body;
-  const db = loadDB();
-
-  const newItem = {
-    id: `i${Date.now()}`,
-    text,
-    type: type || "simple",
-    choices: choices || [],
-    correct: correct || null,
-    observationId: observationId || null, // for rubric items
-  };
-
-  db.items.push(newItem);
-  saveDB(db);
-  res.status(201).json(newItem);
-});
-
-// ------------------------------
-// PUT /api/items/:id
-// ------------------------------
-// body can include: { text, type, choices, correct, observationId }
-router.put("/items/:id", (req, res) => {
-  const { id } = req.params;
-  const updates = req.body;
-  const db = loadDB();
-  const idx = db.items.findIndex((i) => i.id === id);
-  if (idx === -1) return res.status(404).json({ error: "Item not found" });
-
-  db.items[idx] = { ...db.items[idx], ...updates };
-  saveDB(db);
-  res.json(db.items[idx]);
-});
-
-// ------------------------------
-// DELETE /api/items/:id
-// ------------------------------
-// Cascade delete: remove item, update tasks and sessions
-router.delete("/items/:id", (req, res) => {
-  const { id } = req.params;
-  const db = loadDB();
-
-  const before = db.items.length;
-  db.items = db.items.filter((i) => i.id !== id);
-  if (db.items.length === before) {
-    return res.status(404).json({ error: "Item not found" });
-  }
-
-  // Cascade: remove from tasks
-  db.tasks = db.tasks.map((t) => ({
-    ...t,
-    itemIds: t.itemIds.filter((iid) => iid !== id),
-  }));
-
-  // Cascade: clean sessions with references
-  db.sessions = db.sessions.map((s) => {
-    const { [id]: removed, ...remaining } = s.responses || {};
-    return { ...s, responses: remaining };
-  });
-
-  saveDB(db);
-  res.json({ success: true });
-});
-
-// ------------------------------
 // GET /api/evidenceModels
 // ------------------------------
-router.get("/evidenceModels", (req, res) => {
+router.get("/", (req, res) => {
   const db = loadDB();
   res.json(db.evidenceModels || []);
 });
@@ -90,7 +14,7 @@ router.get("/evidenceModels", (req, res) => {
 // ------------------------------
 // POST /api/evidenceModels
 // ------------------------------
-router.post("/evidenceModels", (req, res) => {
+router.post("/", (req, res) => {
   const { name, constructs, observations, rubrics, scoringRule } = req.body;
   const db = loadDB();
 
@@ -107,7 +31,7 @@ router.post("/evidenceModels", (req, res) => {
     constructs: (constructs || []).map(c => ({
       id: c.id || `c${Date.now()}`,
       text: c.text,
-      competencyId: c.competencyId || ""   // ✅ store competency link
+      competencyId: c.competencyId || ""
     })),
     observations: observations || [],
     rubrics: rubrics || [],
@@ -124,7 +48,7 @@ router.post("/evidenceModels", (req, res) => {
 // ------------------------------
 // PUT /api/evidenceModels/:id
 // ------------------------------
-router.put("/evidenceModels/:id", (req, res) => {
+router.put("/:id", (req, res) => {
   const { id } = req.params;
   const updates = req.body;
   const db = loadDB();
@@ -139,15 +63,14 @@ router.put("/evidenceModels/:id", (req, res) => {
     }
   }
 
-  // Merge updates and normalize constructs
   const updatedModel = {
     ...db.evidenceModels[idx],
     ...updates,
     constructs: (updates.constructs || db.evidenceModels[idx].constructs || []).map(c => ({
       id: c.id || `c${Date.now()}`,
       text: c.text,
-      competencyId: c.competencyId || ""   // ✅ ensure competencyId persists
-    }))
+      competencyId: c.competencyId || ""
+    })),
   };
 
   if (!updatedModel.scoringRule) {
@@ -156,15 +79,13 @@ router.put("/evidenceModels/:id", (req, res) => {
 
   db.evidenceModels[idx] = updatedModel;
   saveDB(db);
-
   res.json(updatedModel);
 });
 
 // ------------------------------
 // DELETE /api/evidenceModels/:id
 // ------------------------------
-// Cascade delete: remove evidence model and update tasks/sessions
-router.delete("/evidenceModels/:id", (req, res) => {
+router.delete("/:id", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
 

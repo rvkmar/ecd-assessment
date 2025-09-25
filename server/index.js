@@ -1,10 +1,12 @@
 import express from "express";
 import bodyParser from "body-parser";
 import sessionRoutes from "./routes/sessionRoutes.js";
-import tasksRoutes from "./routes/tasksRoutes.js";
 import questionsRoutes from "./routes/questionsRoutes.js";
 import competencyRoutes from "./routes/competencyModels.js";
 import linkRoutes from "./routes/links.js";
+import evidenceRoutes from "./routes/evidenceModels.js";
+import tasksRoutes from "./routes/tasksRoutes.js";
+
 
 const app = express();
 app.use(express.json());
@@ -21,6 +23,7 @@ app.use("/api", questionsRoutes);
 app.use("/api/tasks", tasksRoutes);
 app.use("/api/competencies", competencyRoutes);
 app.use("/api/competency-links", linkRoutes);
+app.use("/api/evidenceModels", evidenceRoutes);
 // ------------------------------
 // No static serving here!
 // Nginx handles frontend build
