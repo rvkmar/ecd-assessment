@@ -28,7 +28,7 @@ export function useCompetencyStore(notify) {
 
   useEffect(() => {
     if (!hasLoaded) {
-      console.log("[useCompetencyStore] Initial loadAll");
+      // console.log("[useCompetencyStore] Initial loadAll");
       loadAll().then(() => {
         setHasLoaded(true);
         setLoading(false);
@@ -38,14 +38,14 @@ export function useCompetencyStore(notify) {
 
   async function loadAll() {
     try {
-      console.log("[useCompetencyStore] Fetching from API");
+      // console.log("[useCompetencyStore] Fetching from API");
       const [apiModels, apiComps, apiLinks] = await Promise.all([
         fetchJSON("/api/competencies/models"),
         fetchJSON("/api/competencies"),
         fetchJSON("/api/competency-links"),
       ]);
       if ((apiModels?.length || apiComps?.length)) {
-        console.log("[useCompetencyStore] API data loaded", { apiModels, apiComps, apiLinks });
+        // console.log("[useCompetencyStore] API data loaded", { apiModels, apiComps, apiLinks });
         setModels(apiModels || []);
         setCompetencies(apiComps || []);
         setLinks(apiLinks || []);
@@ -54,7 +54,7 @@ export function useCompetencyStore(notify) {
     } catch (err) {
       console.warn("[useCompetencyStore] API load failed, falling back to localStorage", err);
     }
-    console.log("[useCompetencyStore] Loading from localStorage");
+    // console.log("[useCompetencyStore] Loading from localStorage");
     setModels(JSON.parse(localStorage.getItem(LS_KEYS.MODELS) || "[]"));
     setCompetencies(JSON.parse(localStorage.getItem(LS_KEYS.COMPETENCIES) || "[]"));
     setLinks(JSON.parse(localStorage.getItem(LS_KEYS.LINKS) || "[]"));
@@ -79,7 +79,7 @@ export function useCompetencyStore(notify) {
     localStorage.setItem(LS_KEYS.LINKS, JSON.stringify(newLinks));
 
     // 🔧 Disabled API sync temporarily to test flicker source
-    console.log("[useCompetencyStore] Skipping API sync (local-only mode)");
+    // console.log("[useCompetencyStore] Skipping API sync (local-only mode)");
   }
 
   return { models, competencies, links, loadAll, saveAll, loading };

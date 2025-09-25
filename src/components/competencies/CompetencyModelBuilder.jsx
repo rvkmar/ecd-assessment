@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import Card from "../Card";
 import Modal from "../Modal";
-import CompetencyLinker from "../CompetencyLinker";
+import CompetencyLinker from "./CompetencyLinker";
 import { useCompetencyStore, nowISO } from "./useCompetencyStore";
 import ModelForm from "./ModelForm";
 import CompetencyForm from "./CompetencyForm";
@@ -9,6 +9,7 @@ import TreeView from "./CompetencyViews/TreeView";
 import TableView from "./CompetencyViews/TableView";
 import ListView from "./CompetencyViews/ListView";
 import GraphView from "./CompetencyViews/GraphView";
+import CompetencyPanel from "./CompetencyPanel";
 
 export default function CompetencyModelBuilder({ notify }) {
   const { models, competencies, links, saveAll, loading } = useCompetencyStore(notify);
@@ -31,7 +32,7 @@ export default function CompetencyModelBuilder({ notify }) {
 
   // --- Save model ---
   const saveModel = () => {
-    console.log("[CompetencyModelBuilder] saveModel called", modelForm);
+    // console.log("[CompetencyModelBuilder] saveModel called", modelForm);
 
     if (!modelForm.name.trim()) return notify("Enter model name");
     const isEdit = !!modelForm.id;
@@ -49,14 +50,14 @@ export default function CompetencyModelBuilder({ notify }) {
     if (!isEdit) setActiveModelId(newModel.id);
     setModelForm({ id: null, name: "", description: "" });
 
-    console.log("[CompetencyModelBuilder] Updated models", updatedModels);
+    // console.log("[CompetencyModelBuilder] Updated models", updatedModels);
     saveAll(updatedModels, competencies, links);
     notify(isEdit ? "Model updated" : "Model added");
   };
 
   // --- Save competency ---
   const saveCompetency = () => {
-    console.log("[CompetencyModelBuilder] saveCompetency called", compForm);
+    // console.log("[CompetencyModelBuilder] saveCompetency called", compForm);
 
     if (!compForm.name.trim()) return notify("Enter competency name");
     const isEdit = !!compForm.id;
@@ -79,14 +80,14 @@ export default function CompetencyModelBuilder({ notify }) {
 
     setCompForm({ id: null, name: "", description: "", parentId: "", modelId: "" });
 
-    console.log("[CompetencyModelBuilder] Updated competencies", updatedCompetencies);
+    // console.log("[CompetencyModelBuilder] Updated competencies", updatedCompetencies);
     saveAll(models, updatedCompetencies, links);
     notify(isEdit ? "Competency updated" : "Competency added");
   };
 
   // --- Remove model or competency ---
   const removeItem = () => {
-    console.log("[CompetencyModelBuilder] removeItem called", modal);
+    // console.log("[CompetencyModelBuilder] removeItem called", modal);
 
     if (modal.type === "model") {
       const removedModelId = modal.id;
@@ -103,7 +104,7 @@ export default function CompetencyModelBuilder({ notify }) {
       const newActiveId = remainingModels.length ? remainingModels[0].id : null;
       setActiveModelId(newActiveId);
 
-      console.log("[CompetencyModelBuilder] Remaining models", remainingModels);
+      // console.log("[CompetencyModelBuilder] Remaining models", remainingModels);
       saveAll(remainingModels, remainingCompetencies, remainingLinks);
       notify("Model removed");
     }
@@ -117,7 +118,7 @@ export default function CompetencyModelBuilder({ notify }) {
         (l) => !idsToRemove.includes(l.sourceId) && !idsToRemove.includes(l.destId)
       );
 
-      console.log("[CompetencyModelBuilder] Remaining competencies", remainingCompetencies);
+      // console.log("[CompetencyModelBuilder] Remaining competencies", remainingCompetencies);
       saveAll(models, remainingCompetencies, remainingLinks);
       notify("Competency removed");
     }
@@ -127,14 +128,14 @@ export default function CompetencyModelBuilder({ notify }) {
 
   // --- Sync ---
   const syncNow = () => {
-    console.log("[CompetencyModelBuilder] Manual sync called");
+    // console.log("[CompetencyModelBuilder] Manual sync called");
     saveAll(models, competencies, links);
     notify("✅ Sync pushed to server (local state unchanged)");
   };
 
   // --- Render views ---
   const renderView = () => {
-    console.log("[CompetencyModelBuilder] renderView", { viewMode, activeModelId, modelsCount: models.length, competenciesCount: competencies.length });
+    // console.log("[CompetencyModelBuilder] renderView", { viewMode, activeModelId, modelsCount: models.length, competenciesCount: competencies.length });
 
     if (viewMode === "graph")
       return <GraphView competencies={competencies} links={links} activeModelId={activeModelId} />;
@@ -187,27 +188,23 @@ export default function CompetencyModelBuilder({ notify }) {
           </div>
 
           <div className="mb-4 mt-4">
-            <h4 className="font-medium mb-2">Add / Edit Competency</h4>
-          <CompetencyForm
-            form={compForm}
-            setForm={setCompForm}
-            models={models}
-            competencies={competencies}
-            activeModelId={activeModelId}
-            onSave={saveCompetency}
+            <h4 className="font-medium mb-2">Competency Actions</h4>
+            <CompetencyPanel
+              models={models}
+              competencies={competencies}
+              links={links}
+              activeModelId={activeModelId}
+              form={compForm}
+              setForm={setCompForm}
+              saveAll={saveAll}
+              notify={notify}
+              onSave={saveCompetency}
             />
           </div>
         </div>
 
         <div className="md:col-span-2">
           {renderView()}
-          <CompetencyLinker
-            models={models}
-            competencies={competencies}
-            links={links}
-            saveAll={saveAll}
-            notify={notify}
-          />
         </div>
       </div>
 
