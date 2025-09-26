@@ -19,7 +19,7 @@ app.use("/api/sessions", sessionRoutes);
 
 // Add more API routes here (tasks, evidence models, etc.)
 
-app.use("/api", questionsRoutes);
+app.use("/api/questions", questionsRoutes);
 app.use("/api/tasks", tasksRoutes);
 app.use("/api/competencies", competencyRoutes);
 app.use("/api/competency-links", linkRoutes);

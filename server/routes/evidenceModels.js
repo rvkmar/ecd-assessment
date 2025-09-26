@@ -41,9 +41,7 @@ router.post("/", (req, res) => {
   }
 
   // ✅ Validate weights (obsId, rubricId, or rubricId:levelIndex)
-  const rubricMap = new Map(
-    (rubrics || []).map((r) => [r.id, r.levels || []])
-  );
+  const rubricMap = new Map((rubrics || []).map((r) => [r.id, r.levels || []]));
   const validObsIds = new Set(obsIds);
   const validRubricIds = new Set(rubricMap.keys());
 

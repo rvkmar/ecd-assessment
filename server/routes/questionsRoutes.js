@@ -7,7 +7,7 @@ const router = express.Router();
 // ------------------------------
 // GET /api/questions
 // ------------------------------
-router.get("/questions", (req, res) => {
+router.get("/", (req, res) => {
   const db = loadDB();
   res.json(db.questions || []);
 });
@@ -15,7 +15,7 @@ router.get("/questions", (req, res) => {
 // ------------------------------
 // POST /api/questions
 // ------------------------------
-router.post("/questions", (req, res) => {
+router.post("/", (req, res) => {
   let {
     stem,
     type,
@@ -35,7 +35,7 @@ router.post("/questions", (req, res) => {
   // ❌ Prevent placeholder submissions
   if (type === "default") {
     return res.status(400).json({ error: "Invalid question type: default" });
-    }
+  }
     
   // ✅ ensure metadata object exists
   metadata = metadata || {};
@@ -75,7 +75,7 @@ router.post("/questions", (req, res) => {
 // ------------------------------
 // PUT /api/questions/:id
 // ------------------------------
-router.put("/questions/:id", (req, res) => {
+router.put("/:id", (req, res) => {
   const { id } = req.params;
   let updates = req.body;
 
@@ -124,7 +124,7 @@ router.put("/questions/:id", (req, res) => {
 // ------------------------------
 // DELETE /api/questions/:id
 // ------------------------------
-router.delete("/questions/:id", (req, res) => {
+router.delete("/:id", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
 

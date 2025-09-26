@@ -34,47 +34,68 @@ export const schema = {
     updatedAt: 'date',
   },
 
-  // 🔹 Evidence Models
+  // 🔹 Evidence Models (ECD-aligned)
   evidenceModels: {
     id: 'string',
     name: 'string',
     description: 'string',
 
-    evidences: 'array',     // [{id, description}]
-    constructs: 'array',    // [{id, competencyId, evidenceId}]
-    observations: 'array',  // [{id, type, linkedQuestionIds}]
-    rubrics: 'array',       // rubric definitions
+    // Evidence Rules
+    evidences: 'array',     // [{ id, description }]
+    constructs: 'array',    // [{ id, competencyId, evidenceId }]
+    observations: 'array',  // [{ 
+    //    id, 
+    //    type,                // "mcq" | "constructed" | "rubric" | "other"
+    //    linkedQuestionIds,   // items/tasks that generate this observation
+    //    rubric: {            // only if type = rubric
+    //      levels: ['string'], // qualitative levels
+    //    },
+    //    scoring: {           // optional simple scoring rule for obs
+    //      method: "binary" | "partial" | "rubric",
+    //      weights: {}
+    //    }
+    // }]
 
-    scoringModel: 'object', // {
-                            //   type: "IRT" | "BayesianNetwork" | "sum" | "average",
-                            //   weights: { obsId: weight },
-                            //   irtConfig: { model: "2PL"|"3PL" },
-                            //   bayesianConfig: { nodes: [], edges: [], CPTs: {} }
-                            // }
+    // Measurement Model (how observables → competencies)
+    measurementModel: 'object', // {
+    //   type: "IRT" | "BayesianNetwork" | "sum" | "average",
+    //   weights: { obsId: weight },
+    //   irtConfig: { model: "2PL"|"3PL" },
+    //   bayesianConfig: { nodes: [], edges: [], CPTs: {} }
+    // }
 
     createdAt: 'date',
     updatedAt: 'date',
   },
 
-  // 🔹 Task Models (blueprints)
+  // 🔹 Task Models (blueprints for assessment tasks)
   taskModels: {
     id: 'string',
     name: 'string',
     description: 'string',
-    subTaskIds: 'array',
-    evidenceModelIds: 'array',
-    actions: 'array',       // attempt_question, simulation, discussion, etc.
-    difficulty: 'string',   // easy | medium | hard
+
+    subTaskIds: 'array',           // nested blueprints if composite task
+    evidenceModelIds: 'array',     // which evidence models this task contributes to
+
+    // Actions describe what student does
+    actions: 'array',              // e.g. attempt_question, simulation, discussion
+    difficulty: 'string',          // easy | medium | hard
+
+    // Link task to evidence rules explicitly
+    expectedObservations: 'array', // [{ observationId, evidenceId }]
+
     createdAt: 'date',
     updatedAt: 'date',
   },
 
-  // 🔹 Task Instances (delivered to session)
+  // 🔹 Task Instances (delivered in a session)
   tasks: {
     id: 'string',
-    taskModelId: 'string',
-    questionId: 'string',
-    generatedEvidenceIds: 'array',
+    taskModelId: 'string',       // reference to blueprint
+    questionId: 'string',        // optional: if instantiated from a question bank
+    generatedEvidenceIds: 'array', // evidence actually captured during delivery
+    generatedObservationIds: 'array', // which observations were triggered
+
     createdAt: 'date',
     updatedAt: 'date',
   },
@@ -87,25 +108,46 @@ export const schema = {
     updatedAt: 'date',
   },
 
-  // 🔹 Student Sessions (runtime state)
+  // 🔹 Student Sessions (runtime state with adaptive support)
   sessions: {
     id: 'string',
     studentId: 'string',
+
     taskIds: 'array',
     currentTaskIndex: 'number',
-    responses: 'array', // { taskId, answer, timestamp }
+
+    // Rich response trace
+    // 🔹 Inside sessions
+    responses: 'array', // [
+    //   {
+    //     taskId: 'string',           // task attempted
+    //     questionId: 'string',       // optional link to question bank
+    //     rawAnswer: 'string',        // raw response from student
+    //     observationId: 'string',    // which observation this maps to
+    //     scoredValue: 'number|string', // result after applying scoring/rubric
+    //     evidenceId: 'string',       // evidence supported/rejected
+    //     rubricLevel: 'string',      // optional, if rubric applied
+    //     timestamp: 'date'
+    //   }
+    // ]
 
     // Adaptive state
-    irtTheta: 'number',     // evolving ability estimate
-    bnPosteriors: 'object', // { nodeId: probability }
+    studentModel: 'object',          // { irtTheta: number, bnPosteriors: {} }
+    selectionStrategy: 'string',     // "fixed" | "IRT" | "BayesianNetwork" | "custom"
+    nextTaskPolicy: 'object',        // config for adaptive task selection
 
+    // Lifecycle
     isCompleted: 'boolean',
     startedAt: 'date',
     updatedAt: 'date',
   },
 };
 
-export function validateEntity(collection, obj) {
+// ------------------------------
+// Validation function
+// ------------------------------
+export function validateEntity(collection, obj, db = null) {
+  // Pass db for cross-collection checks (competencies, etc.)
   const rules = schema[collection];
   if (!rules) return { valid: false, errors: ['Unknown collection'] };
   const errors = [];
@@ -113,7 +155,6 @@ export function validateEntity(collection, obj) {
   for (const key of Object.keys(rules)) {
     const expected = rules[key];
 
-    // ✅ allow null for optional fields
     if (obj[key] === undefined || obj[key] === null) {
       if (["id", "type", "stem", "createdAt", "updatedAt"].includes(key)) {
         errors.push(`Missing field: ${key}`);
@@ -133,7 +174,7 @@ export function validateEntity(collection, obj) {
     if (expected === 'array' && !Array.isArray(obj[key])) {
       errors.push(`${key} should be array`);
     }
-    if (expected === 'object' && typeof obj[key] !== 'object') {
+    if (expected === 'object' && (typeof obj[key] !== 'object' || Array.isArray(obj[key]))) {
       errors.push(`${key} should be object`);
     }
     if (expected === 'date') {
@@ -142,16 +183,14 @@ export function validateEntity(collection, obj) {
     }
   }
 
-  // ✅ Conditional rules for questions
+  // 🔹 Conditional rules for questions
   if (collection === "questions") {
-    // Constructed / Open → expectedAnswer required
     if (["constructed", "open"].includes(obj.type)) {
       if (!obj.metadata || !obj.metadata.expectedAnswer || obj.metadata.expectedAnswer.trim() === "") {
         errors.push("expectedAnswer is required in metadata for constructed/open questions");
       }
     }
 
-    // MCQ → at least one option and valid correctOptionId
     if (obj.type === "mcq") {
       if (!obj.options || obj.options.length === 0) {
         errors.push("MCQ questions must have at least one option");
@@ -164,24 +203,49 @@ export function validateEntity(collection, obj) {
     }
   }
 
-  // ✅ Conditional rules for evidenceModels
+  // 🔹 Conditional rules for evidenceModels
   if (collection === "evidenceModels") {
     const obsIds = new Set((obj.observations || []).map(o => o.id));
-    const rubricMap = new Map((obj.rubrics || []).map(r => [r.id, r.levels || []]));
-    const validObsIds = new Set(obsIds);
-    const validRubricIds = new Set(rubricMap.keys());
 
-    if (obj.scoringModel?.weights) {
-      for (const wId of Object.keys(obj.scoringModel.weights)) {
-        if (validObsIds.has(wId)) continue; // observation weight
-        if (validRubricIds.has(wId)) continue; // rubric weight
-        // rubric-level weight: r.id:levelIndex
-        const [rubricId, lvlIdxStr] = wId.split(":");
-        const levels = rubricMap.get(rubricId);
+    // gather rubric levels from observations
+    const rubricMap = new Map();
+    for (const obs of obj.observations || []) {
+      if (obs.type === "rubric") {
+        if (!obs.rubric || !Array.isArray(obs.rubric.levels) || obs.rubric.levels.length === 0) {
+          errors.push(`Observation ${obs.id} is type rubric but missing rubric.levels`);
+        } else {
+          rubricMap.set(obs.id, obs.rubric.levels);
+        }
+      }
+    }
+
+    // 🔹 Validate constructs: must reference existing competencies + evidences
+    const evidenceIds = new Set((obj.evidences || []).map(e => e.id));
+    for (const c of obj.constructs || []) {
+      if (!c.competencyId) {
+        errors.push(`Construct ${c.id} is missing competencyId`);
+      } else if (db && !db.competencyModels.find(cm => cm.id === c.competencyId)) {
+        errors.push(`Construct ${c.id} references invalid competencyId: ${c.competencyId}`);
+      }
+      if (!c.evidenceId) {
+        errors.push(`Construct ${c.id} is missing evidenceId`);
+      } else if (!evidenceIds.has(c.evidenceId)) {
+        errors.push(`Construct ${c.id} references invalid evidenceId: ${c.evidenceId}`);
+      }
+    }
+
+    // 🔹 Validate measurement model weights
+    if (obj.measurementModel && obj.measurementModel.weights) {
+      for (const wId of Object.keys(obj.measurementModel.weights)) {
+        if (obsIds.has(wId)) continue; // weight on observation
+
+        // rubric-level weight: observationId:levelIndex
+        const [obsId, lvlIdxStr] = wId.split(":");
+        const levels = rubricMap.get(obsId);
         const idx = parseInt(lvlIdxStr, 10);
         if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) continue;
 
-        errors.push(`Weight reference ${wId} is not a valid observationId, rubricId, or rubric-level key`);
+        errors.push(`Weight reference ${wId} is not a valid observationId or rubric-level key`);
       }
     }
   }
