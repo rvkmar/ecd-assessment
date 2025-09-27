@@ -54,8 +54,17 @@ router.post("/", (req, res) => {
     if (!c.competencyId) {
       return res.status(400).json({ error: `Construct ${c.id} is missing competencyId` });
     }
-    if (!db.competencyModels?.find((cm) => cm.id === c.competencyId)) {
-      return res.status(400).json({ error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}` });
+    const comp = db.competencies?.find((comp) => comp.id === c.competencyId);
+    if (!comp) {
+      return res.status(400).json({
+        error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}`,
+      });
+    }
+    const model = db.competencyModels?.find((m) => m.id === comp.modelId);
+    if (!model) {
+      return res.status(400).json({
+        error: `Construct ${c.id} references competency ${c.competencyId} which has no valid modelId: ${comp.modelId}`,
+      });
     }
   }
 
@@ -197,12 +206,30 @@ router.put("/:id", (req, res) => {
 
   // Validate constructs
   for (const c of constructsNorm) {
-    if (!c.evidenceId) return res.status(400).json({ error: `Construct ${c.id} is missing evidenceId` });
-    if (!evidenceIdSet.has(c.evidenceId)) return res.status(400).json({ error: `Construct ${c.id} references invalid evidenceId: ${c.evidenceId}` });
-    if (!c.competencyId) return res.status(400).json({ error: `Construct ${c.id} is missing competencyId` });
-    if (!db.competencyModels?.find((cm) => cm.id === c.competencyId)) {
-      return res.status(400).json({ error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}` });
+    if (!c.evidenceId) {
+      return res.status(400).json({ error: `Construct ${c.id} is missing evidenceId` });
     }
+    if (!evidenceIdSet.has(c.evidenceId)) {
+      return res.status(400).json({ error: `Construct ${c.id} references invalid evidenceId: ${c.evidenceId}` });
+    }
+    if (!c.competencyId) {
+      return res.status(400).json({ error: `Construct ${c.id} is missing competencyId` });
+    }
+
+    const comp = db.competencies?.find((co) => co.id === c.competencyId);
+    if (!comp) {
+      return res.status(400).json({
+        error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}`,
+      });
+    }
+
+    const model = db.competencyModels?.find((m) => m.id === comp.modelId);
+    if (!model) {
+      return res.status(400).json({
+        error: `Construct ${c.id} references competency ${c.competencyId} which has invalid modelId: ${comp.modelId}`,
+      });
+    }
+
   }
 
   // Observations: keep only those belonging to kept constructs

@@ -2,13 +2,29 @@ import React, { useState, useEffect } from "react";
 
 export default function ObservationEditor({ observations, setObservations, constructs }) {
   const [questions, setQuestions] = useState([]);
+  const [competencies, setCompetencies] = useState([]);
+  const [models, setModels] = useState([]);
 
   useEffect(() => {
-    // Fetch available questions from backend
+    // Fetch available questions
     fetch("/api/questions")
       .then((res) => res.json())
       .then((data) => setQuestions(data || []))
       .catch(() => setQuestions([]));
+
+    // Fetch competencies + models for context
+    Promise.all([
+      fetch("/api/competencies").then((res) => res.json()),
+      fetch("/api/competencies/models").then((res) => res.json()),
+    ])
+      .then(([comps, mods]) => {
+        setCompetencies(comps || []);
+        setModels(mods || []);
+      })
+      .catch(() => {
+        setCompetencies([]);
+        setModels([]);
+      });
   }, []);
 
   const addObservation = () => {
@@ -32,6 +48,12 @@ export default function ObservationEditor({ observations, setObservations, const
   const removeObservation = (id) => {
     setObservations(observations.filter((o) => o.id !== id));
   };
+
+  // helpers
+  const getCompetency = (competencyId) =>
+    competencies.find((c) => c.id === competencyId);
+  const getModelName = (modelId) =>
+    models.find((m) => m.id === modelId)?.name || "Unknown Model";
 
   return (
     <div className="p-4 border rounded-md space-y-3">
@@ -74,11 +96,16 @@ export default function ObservationEditor({ observations, setObservations, const
                 }
               >
                 <option value="">Select construct</option>
-                {constructs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.text || c.id}
-                  </option>
-                ))}
+                {constructs.map((c) => {
+                  const comp = getCompetency(c.competencyId);
+                  const modelName = comp ? getModelName(comp.modelId) : null;
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.text || c.id}
+                      {comp ? ` → ${comp.name} (${modelName})` : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -115,7 +142,7 @@ export default function ObservationEditor({ observations, setObservations, const
               >
                 {questions.map((q) => (
                   <option key={q.id} value={q.id}>
-                    {q.text}
+                    {q.stem || q.text || q.id}
                   </option>
                 ))}
               </select>
@@ -135,7 +162,9 @@ export default function ObservationEditor({ observations, setObservations, const
                   value={(o.rubric?.levels || []).join("\n")}
                   onChange={(e) =>
                     updateObservation(o.id, {
-                      rubric: { levels: e.target.value.split("\n").filter(Boolean) },
+                      rubric: {
+                        levels: e.target.value.split("\n").filter(Boolean),
+                      },
                     })
                   }
                 />

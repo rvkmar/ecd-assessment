@@ -1,22 +1,23 @@
-// routes/competencyModels.js
+// routes/competencyModels.js (merged)
 import express from "express";
-import { loadDB, saveDB } from "../../src/utils/db-server.js";
 import { validateEntity } from "../../src/utils/schema.js";
 
 const router = express.Router();
+
+// In-memory stores
+let competencies = [];
+let competencyModels = [];
 
 /* -------------------------------
    COMPETENCY MODELS
 -------------------------------- */
 // GET all models
 router.get("/models", (req, res) => {
-  const db = loadDB();
-  res.json(db.competencyModels || []);
+  res.json(competencyModels);
 });
 
 // POST new model
 router.post("/models", (req, res) => {
-  const db = loadDB();
   const model = {
     id: `cm${Date.now()}`,
     name: req.body.name,
@@ -27,53 +28,42 @@ router.post("/models", (req, res) => {
     updatedAt: new Date().toISOString(),
   };
 
-  const { valid, errors } = validateEntity("competencyModels", model, db);
+  const { valid, errors } = validateEntity("competencyModels", model);
   if (!valid) return res.status(400).json({ error: "Schema validation failed", details: errors });
 
-  db.competencyModels = db.competencyModels || [];
-  db.competencyModels.push(model);
-  saveDB(db);
-
+  competencyModels.push(model);
   res.status(201).json(model);
 });
 
 // PUT update model
 router.put("/models/:id", (req, res) => {
-  const db = loadDB();
-  const idx = (db.competencyModels || []).findIndex((m) => m.id === req.params.id);
+  const idx = competencyModels.findIndex(m => m.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "Model not found" });
 
   const updated = {
-    ...db.competencyModels[idx],
+    ...competencyModels[idx],
     ...req.body,
     updatedAt: new Date().toISOString(),
   };
 
-  const { valid, errors } = validateEntity("competencyModels", updated, db);
+  const { valid, errors } = validateEntity("competencyModels", updated);
   if (!valid) return res.status(400).json({ error: "Schema validation failed", details: errors });
 
-  db.competencyModels[idx] = updated;
-  saveDB(db);
-
+  competencyModels[idx] = updated;
   res.json(updated);
 });
 
 // DELETE model + its competencies
 router.delete("/models/:id", (req, res) => {
-  const db = loadDB();
   const removedModelId = req.params.id;
-
-  db.competencyModels = (db.competencyModels || []).filter((m) => m.id !== removedModelId);
-  db.competencies = (db.competencies || []).filter((c) => c.modelId !== removedModelId);
-
-  saveDB(db);
+  competencyModels = competencyModels.filter(m => m.id !== removedModelId);
+  competencies = competencies.filter(c => c.modelId !== removedModelId);
   res.json({ removed: removedModelId });
 });
 
 // SYNC models
 router.post("/models/sync", (req, res) => {
-  const db = loadDB();
-  db.competencyModels = (req.body || []).map((m) => ({
+  competencyModels = (req.body || []).map(m => ({
     id: m.id,
     name: m.name,
     description: m.description || "",
@@ -82,8 +72,7 @@ router.post("/models/sync", (req, res) => {
     createdAt: m.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }));
-  saveDB(db);
-  res.json(db.competencyModels);
+  res.json(competencyModels);
 });
 
 /* -------------------------------
@@ -91,13 +80,11 @@ router.post("/models/sync", (req, res) => {
 -------------------------------- */
 // GET all competencies
 router.get("/", (req, res) => {
-  const db = loadDB();
-  res.json(db.competencies || []);
+  res.json(competencies);
 });
 
 // POST new competency
 router.post("/", (req, res) => {
-  const db = loadDB();
   const comp = {
     id: `c${Date.now()}`,
     name: req.body.name,
@@ -110,63 +97,50 @@ router.post("/", (req, res) => {
     updatedAt: new Date().toISOString(),
   };
 
-  const { valid, errors } = validateEntity("competencies", comp, db);
+  const { valid, errors } = validateEntity("competencies", comp);
   if (!valid) return res.status(400).json({ error: "Schema validation failed", details: errors });
 
-  db.competencies = db.competencies || [];
-  db.competencies.push(comp);
-  saveDB(db);
-
+  competencies.push(comp);
   res.status(201).json(comp);
 });
 
 // PUT update competency
 router.put("/:id", (req, res) => {
-  const db = loadDB();
-  const idx = (db.competencies || []).findIndex((c) => c.id === req.params.id);
+  const idx = competencies.findIndex(c => c.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "Not found" });
 
   const updated = {
-    ...db.competencies[idx],
+    ...competencies[idx],
     ...req.body,
     updatedAt: new Date().toISOString(),
   };
 
-  const { valid, errors } = validateEntity("competencies", updated, db);
+  const { valid, errors } = validateEntity("competencies", updated);
   if (!valid) return res.status(400).json({ error: "Schema validation failed", details: errors });
 
-  db.competencies[idx] = updated;
-  saveDB(db);
-
+  competencies[idx] = updated;
   res.json(updated);
 });
 
 // DELETE competency + descendants
 router.delete("/:id", (req, res) => {
-  const db = loadDB();
-
   const getDescendants = (cid) =>
-    (db.competencies || [])
-      .filter((c) => c.parentId === cid)
-      .flatMap((c) => [c.id, ...getDescendants(c.id)]);
+    competencies.filter((c) => c.parentId === cid).flatMap((c) => [c.id, ...getDescendants(c.id)]);
 
   const idsToRemove = [req.params.id, ...getDescendants(req.params.id)];
-  db.competencies = (db.competencies || []).filter((c) => !idsToRemove.includes(c.id));
+  competencies = competencies.filter((c) => !idsToRemove.includes(c.id));
 
-  saveDB(db);
   res.json({ removed: idsToRemove });
 });
 
 // SYNC competencies
 router.post("/sync", (req, res) => {
-  const db = loadDB();
-  db.competencies = (req.body || []).map((c) => ({
+  competencies = (req.body || []).map(c => ({
     ...c,
     createdAt: c.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }));
-  saveDB(db);
-  res.json(db.competencies);
+  res.json(competencies);
 });
 
 export default router;

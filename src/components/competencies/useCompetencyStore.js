@@ -1,4 +1,4 @@
-// useCompetencyStore.js (local-only mode with stack trace debug)
+// useCompetencyStore.js (with backend sync enabled)
 import { useState, useEffect } from "react";
 
 const LS_KEYS = { MODELS: "ecd:competencyModels", COMPETENCIES: "ecd:competencies", LINKS: "ecd:links" };
@@ -7,8 +7,10 @@ export function nowISO() {
   return new Date().toISOString();
 }
 
-export function uid(prefix="c") {
-  return `${prefix}${Date.now()}${Math.floor(Math.random()*900).toString().padStart(3,"0")}`;
+export function uid(prefix = "c") {
+  return `${prefix}${Date.now()}${Math.floor(Math.random() * 900)
+    .toString()
+    .padStart(3, "0")}`;
 }
 
 async function fetchJSON(url, opts = {}) {
@@ -16,7 +18,9 @@ async function fetchJSON(url, opts = {}) {
     const res = await fetch(url, opts);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export function useCompetencyStore(notify) {
@@ -28,7 +32,6 @@ export function useCompetencyStore(notify) {
 
   useEffect(() => {
     if (!hasLoaded) {
-      // console.log("[useCompetencyStore] Initial loadAll");
       loadAll().then(() => {
         setHasLoaded(true);
         setLoading(false);
@@ -38,14 +41,12 @@ export function useCompetencyStore(notify) {
 
   async function loadAll() {
     try {
-      // console.log("[useCompetencyStore] Fetching from API");
       const [apiModels, apiComps, apiLinks] = await Promise.all([
         fetchJSON("/api/competencies/models"),
         fetchJSON("/api/competencies"),
         fetchJSON("/api/competency-links"),
       ]);
       if ((apiModels?.length || apiComps?.length)) {
-        // console.log("[useCompetencyStore] API data loaded", { apiModels, apiComps, apiLinks });
         setModels(apiModels || []);
         setCompetencies(apiComps || []);
         setLinks(apiLinks || []);
@@ -54,7 +55,6 @@ export function useCompetencyStore(notify) {
     } catch (err) {
       console.warn("[useCompetencyStore] API load failed, falling back to localStorage", err);
     }
-    // console.log("[useCompetencyStore] Loading from localStorage");
     setModels(JSON.parse(localStorage.getItem(LS_KEYS.MODELS) || "[]"));
     setCompetencies(JSON.parse(localStorage.getItem(LS_KEYS.COMPETENCIES) || "[]"));
     setLinks(JSON.parse(localStorage.getItem(LS_KEYS.LINKS) || "[]"));
@@ -68,18 +68,38 @@ export function useCompetencyStore(notify) {
       stack: new Error().stack,
     });
 
-    // ✅ Always keep local state authoritative
+    // ✅ Update React state
     setModels(newModels);
     setCompetencies(newCompetencies);
     setLinks(newLinks);
 
-    // ✅ Immediately save to LocalStorage (auto-save)
+    // ✅ Save to LocalStorage (backup / offline mode)
     localStorage.setItem(LS_KEYS.MODELS, JSON.stringify(newModels));
     localStorage.setItem(LS_KEYS.COMPETENCIES, JSON.stringify(newCompetencies));
     localStorage.setItem(LS_KEYS.LINKS, JSON.stringify(newLinks));
 
-    // 🔧 Disabled API sync temporarily to test flicker source
-    // console.log("[useCompetencyStore] Skipping API sync (local-only mode)");
+    // ✅ Push to backend DB
+    try {
+      await fetch("/api/competencies/models/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newModels),
+      });
+      await fetch("/api/competencies/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCompetencies),
+      });
+      await fetch("/api/competency-links/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newLinks),
+      });
+      console.log("[useCompetencyStore] ✅ Synced to backend");
+    } catch (err) {
+      console.error("[useCompetencyStore] ❌ Failed to sync with backend", err);
+      if (notify) notify("⚠️ Failed to sync with server. Local copy saved.");
+    }
   }
 
   return { models, competencies, links, loadAll, saveAll, loading };

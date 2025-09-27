@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from "react";
 
 export default function ConstructEditor({ constructs, setConstructs, evidences }) {
-  const [competencyModels, setCompetencyModels] = useState([]);
+  const [competencies, setCompetencies] = useState([]);
+  const [models, setModels] = useState([]);
 
   useEffect(() => {
-    // Fetch competency models from backend
-    fetch("/api/competencies")
-      .then((res) => res.json())
-      .then((data) => setCompetencyModels(data || []))
-      .catch(() => setCompetencyModels([]));
+    // Fetch competencies and models together
+    Promise.all([
+      fetch("/api/competencies").then((res) => res.json()),
+      fetch("/api/competencies/models").then((res) => res.json()),
+    ])
+      .then(([comps, mods]) => {
+        setCompetencies(comps || []);
+        setModels(mods || []);
+      })
+      .catch(() => {
+        setCompetencies([]);
+        setModels([]);
+      });
   }, []);
 
   const addConstruct = () => {
@@ -23,14 +32,18 @@ export default function ConstructEditor({ constructs, setConstructs, evidences }
 
   const updateConstruct = (id, updates) => {
     setConstructs(
-      constructs.map((c) =>
-        c.id === id ? { ...c, ...updates } : c
-      )
+      constructs.map((c) => (c.id === id ? { ...c, ...updates } : c))
     );
   };
 
   const removeConstruct = (id) => {
     setConstructs(constructs.filter((c) => c.id !== id));
+  };
+
+  // helper to get model name
+  const getModelName = (modelId) => {
+    const model = models.find((m) => m.id === modelId);
+    return model ? model.name : "Unknown Model";
   };
 
   return (
@@ -73,9 +86,9 @@ export default function ConstructEditor({ constructs, setConstructs, evidences }
                 }
               >
                 <option value="">Select competency</option>
-                {competencyModels.map((cm) => (
-                  <option key={cm.id} value={cm.id}>
-                    {cm.name}
+                {competencies.map((comp) => (
+                  <option key={comp.id} value={comp.id}>
+                    {comp.name} ({getModelName(comp.modelId)})
                   </option>
                 ))}
               </select>
