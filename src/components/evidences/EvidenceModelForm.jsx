@@ -1,113 +1,98 @@
 import React, { useState, useEffect } from "react";
+import EvidenceEditor from "./EvidenceEditor";
 import ConstructEditor from "./constructs/ConstructEditor";
-import ScoringRuleEditor from "./scoring/ScoringRuleEditor";
+import ObservationEditor from "./observations/ObservationEditor";
+import RubricEditor from "./rubrics/RubricEditor";
+import MeasurementModelEditor from "./MeasurementModelEditor";
 
-export default function EvidenceModelForm({
-  editingModel,
-  setEditingModel,
-  competencies,
-  models,
-  setModels,
-  notify,
-}) {
-  const [name, setName] = useState("");
-  const [constructs, setConstructs] = useState([]);
-  const [observations, setObservations] = useState([]);
-  const [rubrics, setRubrics] = useState([]);
-  const [scoringModel, setScoringModel] = useState({});
+export default function EvidenceModelForm({ model, onSave }) {
+  const [name, setName] = useState(model?.name || "");
+  const [description, setDescription] = useState(model?.description || "");
+  const [evidences, setEvidences] = useState(model?.evidences || []);
+  const [constructs, setConstructs] = useState(model?.constructs || []);
+  const [observations, setObservations] = useState(model?.observations || []);
+  const [rubrics, setRubrics] = useState(model?.rubrics || []);
+  const [measurementModel, setMeasurementModel] = useState(
+    model?.measurementModel || { type: "sum", weights: {} }
+  );
 
-  useEffect(() => {
-    if (editingModel) {
-      setName(editingModel.name || "");
-      setConstructs(editingModel.constructs || []);
-      setObservations(editingModel.observations || []);
-      setRubrics(editingModel.rubrics || []);
-      setScoringModel(editingModel.scoringModel || {});
-    }
-  }, [editingModel]);
+  // On save → package data in strict ECD schema
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...model,
+      name,
+      description,
+      evidences,
+      constructs,
+      observations,
+      rubrics,
+      measurementModel,
+    });
+  };
 
   return (
-    <div>
-      <h3>Evidence Model Form</h3>
-      <input
-        className="border p-2 w-full mb-2"
-        placeholder="Model name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Metadata */}
+      <div>
+        <label className="block font-medium">Model Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full border rounded p-2"
+        />
+      </div>
 
+      <div>
+        <label className="block font-medium">Description</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full border rounded p-2"
+          rows={2}
+        />
+      </div>
+
+      {/* Evidences */}
+      <EvidenceEditor evidences={evidences} setEvidences={setEvidences} />
+
+      {/* Constructs */}
       <ConstructEditor
         constructs={constructs}
         setConstructs={setConstructs}
-        competencies={competencies}
+        evidences={evidences}
+      />
+
+      {/* Observations */}
+      <ObservationEditor
         observations={observations}
         setObservations={setObservations}
-        rubrics={rubrics}
-        setRubrics={setRubrics}
-        removeConstruct={removeConstruct}   // ✅ cascade-aware
-        removeObservation={removeObservation} // ✅ cascade-aware
+        constructs={constructs}
       />
 
-      <ScoringRuleEditor
-        rule={scoringModel}
-        setRule={setScoringModel}
+      {/* Rubrics */}
+      <RubricEditor
+        rubrics={rubrics}
+        setRubrics={setRubrics}
         observations={observations}
       />
 
-      <button className="bg-blue-500 text-white px-4 py-2 rounded">
-        {editingModel ? "Update" : "Add"} Model
+      {/* Measurement Model */}
+      <MeasurementModelEditor
+        model={measurementModel}
+        setModel={setMeasurementModel}
+        observations={observations}
+        rubrics={rubrics}
+      />
+
+      {/* Save */}
+      <button
+        type="submit"
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+      >
+        Save Evidence Model
       </button>
-    </div>
+    </form>
   );
 }
-
-// Remove construct + cascade cleanup
-const removeConstruct = (constructId) => {
-  // Drop construct
-  setConstructs((prev) => prev.filter((c) => c.id !== constructId));
-
-  // Find observations tied to this construct
-  const obsToRemove = observations.filter((o) => o.constructId === constructId).map((o) => o.id);
-
-  // Drop observations
-  setObservations((prev) => prev.filter((o) => !obsToRemove.includes(o.id)));
-
-  // Drop rubrics tied to those observations
-  setRubrics((prev) => prev.filter((r) => !obsToRemove.includes(r.observationId)));
-
-  // Drop weights for those observations
-  setScoringModel((prev) => ({
-    ...prev,
-    weights: Object.fromEntries(
-      Object.entries(prev.weights || {}).filter(([obsId]) => !obsToRemove.includes(obsId))
-    ),
-  }));
-};
-
-// Remove observation + cascade cleanup
-const removeObservation = (observationId) => {
-  // Drop observation
-  setObservations((prev) => prev.filter((o) => o.id !== observationId));
-
-  // Drop rubrics tied to this observation
-  setRubrics((prev) => prev.filter((r) => r.observationId !== observationId));
-
-  // Drop weight for this observation
-  setScoringModel((prev) => {
-    const { [observationId]: removed, ...remaining } = prev.weights || {};
-    return { ...prev, weights: remaining };
-  });
-};
-
-// Remove rubric + cleanup (future-proof for rubric-level weights/scoring)
-const removeRubric = (rubricId) => {
-  // Drop rubric
-  setRubrics((prev) => prev.filter((r) => r.id !== rubricId));
-
-  // Drop any weights keyed by rubricId (if such exist in scoringModel)
-  setScoringModel((prev) => {
-    if (!prev.weights) return prev;
-    const { [rubricId]: removed, ...remaining } = prev.weights;
-    return { ...prev, weights: remaining };
-  });
-};
