@@ -117,5 +117,16 @@ export function useCompetencyStore(notify) {
     }
   }
 
-  return { models, competencies, links, loadAll, saveAll, loading };
+  async function deleteCompetency(id) {
+    try {
+      await fetch(`/api/competencies/${id}`, { method: "DELETE" });
+      // refresh store from backend
+      await loadAll();
+    } catch (err) {
+      console.error("[useCompetencyStore] Failed to delete competency", err);
+    }
+  }
+
+
+  return { models, competencies, links, loadAll, saveAll, deleteCompetency, loading };
 }

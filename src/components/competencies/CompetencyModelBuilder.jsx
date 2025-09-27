@@ -153,7 +153,7 @@ export default function CompetencyModelBuilder({ notify }) {
       <div className="flex justify-between mb-3">
         <h3>Models</h3>
         <div>
-          <button onClick={syncNow}>🔃</button>
+          {/* <button onClick={syncNow}>🔃</button> */}
           <select value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
             <option value="graph">Graph</option>
             <option value="tree">Tree</option>
