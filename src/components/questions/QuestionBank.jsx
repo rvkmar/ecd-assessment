@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import Card from "./Card";
-import Modal from "./Modal";
+import Card from "../ui/Card";
+import Modal from "../ui/Modal";
 
 export default function QuestionBank({ notify }) {
   const [questions, setQuestions] = useState([]);

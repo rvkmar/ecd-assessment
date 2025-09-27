@@ -84,6 +84,8 @@ export const schema = {
     // Link task to evidence rules explicitly
     expectedObservations: 'array', // [{ observationId, evidenceId }]
 
+    itemMappings: 'array', // [{ itemId, observationId, evidenceId }]
+
     createdAt: 'date',
     updatedAt: 'date',
   },

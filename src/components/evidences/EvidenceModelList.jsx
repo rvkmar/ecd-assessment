@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import Modal from "../Modal";
+import Modal from "../ui/Modal";
 
 export default function EvidenceModelList({ models, onEdit, onDelete }) {
   const [competencies, setCompetencies] = useState([]);

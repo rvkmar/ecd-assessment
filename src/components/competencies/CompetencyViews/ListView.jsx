@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Modal from "../../Modal";
+import Modal from "../../ui/Modal";
 
 export default function ListView({ competencies, onEdit, onDelete }) {
   const [deleteModal, setDeleteModal] = useState({ open: false, id: null, name: "" });

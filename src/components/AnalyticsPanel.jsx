@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import Card from "./Card";
+import Card from "./ui/Card";
 import { loadDB } from "../utils/db";
 import {
   BarChart,

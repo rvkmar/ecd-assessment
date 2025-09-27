@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
-import Card from "../Card";
-import Modal from "../Modal";
+import Card from "../ui/Card";
+import Modal from "../ui/Modal";
 import CompetencyLinker from "./CompetencyLinker";
 import { useCompetencyStore, nowISO } from "./useCompetencyStore";
 import ModelForm from "./ModelForm";

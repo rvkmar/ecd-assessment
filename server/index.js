@@ -6,7 +6,8 @@ import competencyRoutes from "./routes/competencyModels.js";
 import linkRoutes from "./routes/links.js";
 import evidenceRoutes from "./routes/evidenceModels.js";
 import tasksRoutes from "./routes/tasksRoutes.js";
-
+import taskModelsRoutes from "./routes/taskModelsRoutes.js";
+import reportsRoutes from "./routes/reportsRoutes.js";
 
 const app = express();
 app.use(express.json());
@@ -24,6 +25,8 @@ app.use("/api/tasks", tasksRoutes);
 app.use("/api/competencies", competencyRoutes);
 app.use("/api/competency-links", linkRoutes);
 app.use("/api/evidenceModels", evidenceRoutes);
+app.use("/api/taskModels", taskModelsRoutes);
+app.use("/api/reports", reportsRoutes);
 // ------------------------------
 // No static serving here!
 // Nginx handles frontend build

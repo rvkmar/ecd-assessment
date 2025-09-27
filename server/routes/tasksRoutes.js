@@ -1,3 +1,4 @@
+// server/routes/api/tasksRoutes.js
 import express from "express";
 import { loadDB, saveDB } from "../../src/utils/db-server.js";
 import { validateEntity } from "../../src/utils/schema.js";
@@ -25,10 +26,10 @@ router.get("/:id", (req, res) => {
 // ------------------------------
 // POST /api/tasks
 // ------------------------------
-// body: { taskModelId, questionId?, generatedEvidenceIds?, generatedObservationIds? }
+// body: { taskModelId, questionId? }
 router.post("/", (req, res) => {
   const db = loadDB();
-  const { taskModelId, questionId, generatedEvidenceIds, generatedObservationIds } = req.body;
+  const { taskModelId, questionId } = req.body;
 
   if (!taskModelId) {
     return res.status(400).json({ error: "taskModelId is required" });
@@ -43,8 +44,11 @@ router.post("/", (req, res) => {
     id: `t${Date.now()}`,
     taskModelId,
     questionId: questionId || null,
-    generatedEvidenceIds: generatedEvidenceIds || [],
-    generatedObservationIds: generatedObservationIds || [],
+
+    // 🔹 Strict ECD: always initialize as empty arrays
+    generatedEvidenceIds: [],
+    generatedObservationIds: [],
+
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -76,6 +80,14 @@ router.put("/:id", (req, res) => {
     ...updates,
     updatedAt: new Date().toISOString(),
   };
+
+  // Ensure arrays exist
+  if (!Array.isArray(updatedTask.generatedEvidenceIds)) {
+    updatedTask.generatedEvidenceIds = [];
+  }
+  if (!Array.isArray(updatedTask.generatedObservationIds)) {
+    updatedTask.generatedObservationIds = [];
+  }
 
   const { valid, errors } = validateEntity("tasks", updatedTask, db);
   if (!valid) {

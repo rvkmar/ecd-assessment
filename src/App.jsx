@@ -1,133 +1,167 @@
-import React, { useState } from "react";
-
-import { exportDB, importDB } from "./utils/db";
-import Modal from "./components/Modal";
-// import ItemBank from "./components/ItemBank";
-import QuestionBank from "./components/QuestionBank";
+// src/App.jsx
+import React, { useState, useEffect } from "react";
+import { exportDB } from "./utils/db";
+import Modal from "./components/ui/Modal";
+import QuestionBank from "./components/questions/QuestionBank";
 import CompetencyModelBuilder from "./components/competencies/CompetencyModelBuilder";
 import EvidenceModelBuilder from "./components/evidences/EvidenceModelBuilder";
-import TasksManager from "./components/TasksManager";
-import StudentSession from "./components/StudentSession";
+import TasksManager from "./components/taskModels/TaskModelManager";
+import StudentSession from "./components/sessions/StudentSession";
 import AnalyticsPanel from "./components/AnalyticsPanel";
-import Toast from "./components/Toast";
+import Toast from "./components/ui/Toast";
+
+function TaskList() {
+  const [tasks, setTasks] = useState([]);
+  const [taskModels, setTaskModels] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/tasks")
+      .then((r) => r.json())
+      .then((data) => setTasks(data || []));
+    fetch("/api/taskModels")
+      .then((r) => r.json())
+      .then((data) => setTaskModels(data || []));
+  }, []);
+
+  const getTaskModelName = (id) => {
+    const tm = taskModels.find((m) => m.id === id);
+    return tm ? tm.name : id;
+  };
+
+  return (
+    <div className="p-2">
+      <h3 className="font-semibold mb-2">Tasks</h3>
+      <ul className="list-disc ml-5">
+        {tasks.map((t) => (
+          <li key={t.id}>
+            <span className="font-medium">
+              {getTaskModelName(t.taskModelId)}
+            </span>{" "}
+            (<code>{t.id}</code>)
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function App() {
   const [role, setRole] = useState("teacher");
-  const [activeSessionId, setActiveSessionId] = useState(null);
-  const [refreshFlag, setRefreshFlag] = useState(false);
-  const [toast, setToast] = useState("");
   const [tab, setTab] = useState("items");
+  const [toast, setToast] = useState(null);
 
-  const [importError, setImportError] = useState("");
+  const [sessions, setSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState("");
 
   const notify = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 2000);
+    setTimeout(() => setToast(null), 3000);
   };
 
-  const refresh = () => setRefreshFlag(!refreshFlag);
-
-  // Create session via API
-  const startSession = async (taskId) => {
-    const res = await fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taskId, studentId: "student1" }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setActiveSessionId(data.id);
-    } else {
-      notify("❌ Failed to start session");
+  useEffect(() => {
+    if (role === "student") {
+      fetch("/api/sessions")
+        .then((r) => r.json())
+        .then((data) => setSessions(data || []))
+        .catch(() => notify("❌ Failed to load sessions"));
     }
-  };
+  }, [role]);
 
-return (
-  <div className="min-h-screen bg-slate-50 p-6 space-y-4 flex flex-col pb-16">
-    {/* Header */}
-    <div className="flex justify-between items-center">
-      <h1 className="text-2xl font-bold text-blue-600">Assessment</h1>
-      <div className="flex items-center gap-2">
-        <select
-          className="border p-2 rounded"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        >
-          <option value="teacher">Teacher</option>
-          <option value="student">Student</option>
-        </select>
-        {role === "teacher" && (
-          <button
-            onClick={exportDB}
-            className="px-3 py-1 bg-purple-500 text-white rounded"
+  return (
+    <div className="p-4">
+      <header className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold">Assessment</h1>
+        <div className="flex items-center gap-2">
+          <select
+            className="border p-2 rounded"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
           >
-            Export
-          </button>
-        )}
-      </div>
-    </div>
+            <option value="teacher">Teacher</option>
+            <option value="student">Student</option>
+            </select>
+          </div>
+      </header>
 
       {/* Teacher Tabs */}
       {role === "teacher" && (
-        <div className="bg-white rounded-xl shadow p-4">
-          <div className="flex flex-wrap sm:flex-nowrap gap-4 border-b mb-4">
+        <div>
+          <nav className="mb-3">
             <button
-              className={`pb-2 ${tab === "items" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("items")}
+              className={`px-3 py-1 mr-2 ${
+                tab === "items" ? "bg-green-500 text-white" : "bg-gray-200"
+              }`}
             >
-              Item Bank
+              Items
             </button>
             <button
-              className={`pb-2 ${tab === "competency" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("competency")}
+              className={`px-3 py-1 mr-2 ${
+                tab === "competency" ? "bg-green-500 text-white" : "bg-gray-200"
+              }`}
             >
-              Competencies
+              Competency
             </button>
             <button
-              className={`pb-2 ${tab === "models" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("models")}
+              className={`px-3 py-1 mr-2 ${
+                tab === "models" ? "bg-green-500 text-white" : "bg-gray-200"
+              }`}
             >
               Evidences
             </button>
             <button
-              className={`pb-2 ${tab === "tasks" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("tasks")}
+              className={`px-3 py-1 mr-2 ${
+                tab === "tasks" ? "bg-green-500 text-white" : "bg-gray-200"
+              }`}
             >
-              Tasks/Actions
+              Tasks
             </button>
             <button
-              className={`pb-2 ${tab === "analytics" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-500"}`}
               onClick={() => setTab("analytics")}
+              className={`px-3 py-1 ${
+                tab === "analytics" ? "bg-green-500 text-white" : "bg-gray-200"
+              }`}
             >
               Analytics
             </button>
-          </div>
+          </nav>
 
-          {/* existing conditional renders */}
           {tab === "items" && <QuestionBank notify={notify} />}
           {tab === "competency" && <CompetencyModelBuilder notify={notify} />}
           {tab === "models" && <EvidenceModelBuilder notify={notify} />}
           {tab === "tasks" && <TasksManager notify={notify} />}
-          {tab === "analytics" && <AnalyticsPanel refreshFlag={refreshFlag} />}
+          {tab === "analytics" && <AnalyticsPanel />}
         </div>
       )}
 
       {/* Student View */}
-      {role === "student" && !activeSessionId && (
-        <div className="bg-white rounded-xl shadow p-4">
-          <h3 className="font-semibold mb-2">Available Tasks</h3>
-          <TaskList startSession={startSession} />
-        </div>
-      )}
+      {role === "student" && (
+        <div>
+          <h2 className="font-semibold mb-2">Select a Session</h2>
+          {sessions.length > 0 ? (
+            <select
+              className="border p-2 mb-3"
+              value={selectedSessionId}
+              onChange={(e) => setSelectedSessionId(e.target.value)}
+            >
+              <option value="">-- choose session --</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id} {s.isCompleted ? "(completed)" : ""}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-gray-500">No sessions available</p>
+          )}
 
-      {role === "student" && activeSessionId && (
-        <StudentSession
-          sessionId={activeSessionId}
-          onFinish={() => {
-            setActiveSessionId(null);
-            refresh();
-          }}
-        />
+          {selectedSessionId && (
+            <StudentSession sessionId={selectedSessionId} notify={notify} />
+          )}
+        </div>
       )}
 
       {/* Footer */}
@@ -137,44 +171,7 @@ return (
         </p>
       </footer>
 
-      {/* 🆕 Import Error Modal */}
-      <Modal
-        isOpen={!!importError}
-        title="Import Error"
-        message={importError}
-        onClose={() => setImportError("")}
-        onConfirm={() => setImportError("")}
-      />
-
-      <Toast message={toast} />
+      {toast && <Toast message={toast} />}
     </div>
-  );
-}
-
-function TaskList({ startSession }) {
-  const [tasks, setTasks] = useState([]);
-
-  useState(() => {
-    fetch("/api/tasks")
-      .then((r) => r.json())
-      .then((data) => setTasks(data || []));
-  }, []);
-
-  if (tasks.length === 0) return <p>No tasks available</p>;
-
-  return (
-    <ul className="space-y-2">
-      {tasks.map((t) => (
-        <li key={t.id} className="flex justify-between items-center">
-          <span>{t.title}</span>
-          <button
-            onClick={() => startSession(t.id)}
-            className="px-2 py-1 bg-blue-500 text-white rounded"
-          >
-            Start
-          </button>
-        </li>
-      ))}
-    </ul>
   );
 }
