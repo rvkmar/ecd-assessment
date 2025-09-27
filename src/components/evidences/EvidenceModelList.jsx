@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import Modal from "../Modal";
 
 export default function EvidenceModelList({ models, onEdit, onDelete }) {
   const [competencies, setCompetencies] = useState([]);
   const [modelsData, setModelsData] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [expanded, setExpanded] = useState({}); // track expanded state by constructId
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null, name: "" });
 
   useEffect(() => {
     Promise.all([
@@ -28,7 +30,10 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
   const getModelName = (modelId) =>
     modelsData.find((m) => m.id === modelId)?.name || "Unknown Model";
   const getQuestionText = (id) =>
-    questions.find((q) => q.id === id)?.text || `Unknown Question (${id})`;
+    questions.find((q) => q.id === id)?.stem ||
+    questions.find((q) => q.id === id)?.text ||
+    `Unknown Question (${id})`;
+
 
   const toggleExpand = (constructId) => {
     setExpanded((prev) => ({
@@ -143,15 +148,30 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                 Edit
               </button>
               <button
-                onClick={() => onDelete(m.id)}
-                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-              >
-                Delete
+                  onClick={() => setDeleteModal({ open: true, id: m.id, name: m.name })}
+                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                >
+                  Delete
               </button>
             </div>
           </div>
         );
       })}
+      
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, id: null, name: "" })}
+        onConfirm={() => {
+          if (deleteModal.id) {
+            onDelete(deleteModal.id);
+          }
+          setDeleteModal({ open: false, id: null, name: "" });
+        }}
+        title="Confirm Delete"
+        message={`Are you sure you want to delete evidence model "${deleteModal.name}"?`}
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+      />
     </div>
   );
 }

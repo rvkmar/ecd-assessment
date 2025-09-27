@@ -24,41 +24,22 @@ function backupDB() {
 }
 
 // ------------------------------
-// Default structure
-// ------------------------------
-
-function defaultDB() {
-  return {
-    items: [],
-    evidenceModels: [],
-    tasks: [],
-    sessions: [],
-    competencyModels: [],
-    competencies: [],   // ✅ added
-    taskModels: [],
-    students: [],
-    questions: [],      // ✅ added
-  };
-}
-
-// ------------------------------
 // Load & Save DB
 // ------------------------------
 
 export function loadDB() {
   if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(defaultDB(), null, 2));
+    fs.writeFileSync(
+      DB_FILE,
+      JSON.stringify(
+        { items: [], evidenceModels: [], tasks: [], sessions: [], competencyModels: [], taskModels: [], students: [] },
+        null,
+        2
+      )
+    );
   }
   const data = fs.readFileSync(DB_FILE);
-  const db = JSON.parse(data);
-
-  // Ensure required arrays exist (migration safety)
-  const base = defaultDB();
-  Object.keys(base).forEach((key) => {
-    if (!db[key]) db[key] = base[key];
-  });
-
-  return db;
+  return JSON.parse(data);
 }
 
 export function saveDB(db) {

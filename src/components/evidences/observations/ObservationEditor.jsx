@@ -32,7 +32,7 @@ export default function ObservationEditor({ observations, setObservations, const
       id: `o${Date.now()}`,
       text: "",
       constructId: "",
-      type: "other",
+      type: "generic",
       linkedQuestionIds: [],
       rubric: null,
     };
@@ -119,7 +119,7 @@ export default function ObservationEditor({ observations, setObservations, const
                   updateObservation(o.id, { type: e.target.value })
                 }
               >
-                <option value="other">Other</option>
+                <option value="generic">Generic</option>
                 <option value="rubric">Rubric</option>
               </select>
             </div>

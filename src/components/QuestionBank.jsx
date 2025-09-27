@@ -137,7 +137,7 @@ export default function QuestionBank({ notify }) {
         <option value="mcq">Multiple Choice</option>
         <option value="open">Open Response</option>
         <option value="rubric">Rubric based Observation</option>
-        TODO: Modify rubric based observations as per new evidence model design. Change to Observation based question.
+        {/* TODO: Modify rubric based observations as per new evidence model design. Change to Observation based question. */}
       </select>
 
       {type === "default" && (

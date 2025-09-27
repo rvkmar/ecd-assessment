@@ -224,7 +224,7 @@ export function validateEntity(collection, obj, db = null) {
     for (const c of obj.constructs || []) {
       if (!c.competencyId) {
         errors.push(`Construct ${c.id} is missing competencyId`);
-      } else if (db && !db.competencyModels.find(cm => cm.id === c.competencyId)) {
+      } else if (db && !db.competencies.find(comp => comp.id === c.competencyId)) {
         errors.push(`Construct ${c.id} references invalid competencyId: ${c.competencyId}`);
       }
       if (!c.evidenceId) {

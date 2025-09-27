@@ -1,4 +1,4 @@
-// useCompetencyStore.js (with backend sync enabled)
+// useCompetencyStore.js
 import { useState, useEffect } from "react";
 
 const LS_KEYS = { MODELS: "ecd:competencyModels", COMPETENCIES: "ecd:competencies", LINKS: "ecd:links" };
@@ -8,6 +8,8 @@ export function nowISO() {
 }
 
 export function uid(prefix = "c") {
+  // ✅ ensure competency model IDs use "cm" not "m"
+  if (prefix === "m") prefix = "cm";
   return `${prefix}${Date.now()}${Math.floor(Math.random() * 900)
     .toString()
     .padStart(3, "0")}`;
@@ -78,24 +80,37 @@ export function useCompetencyStore(notify) {
     localStorage.setItem(LS_KEYS.COMPETENCIES, JSON.stringify(newCompetencies));
     localStorage.setItem(LS_KEYS.LINKS, JSON.stringify(newLinks));
 
-    // ✅ Push to backend DB
+    // ✅ Push to backend DB with safe IDs
     try {
+      // Normalize models to use "cm" IDs
+      const safeModels = newModels.map((m) => ({
+        ...m,
+        id: m.id?.startsWith("cm") ? m.id : `cm${m.id.replace(/^m/, "")}`,
+      }));
+
+      // Normalize competencies to reference safe "cm" IDs
+      const safeCompetencies = newCompetencies.map((c) => ({
+        ...c,
+        modelId: c.modelId?.startsWith("cm") ? c.modelId : `cm${c.modelId.replace(/^m/, "")}`,
+      }));
+
       await fetch("/api/competencies/models/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newModels),
+        body: JSON.stringify(safeModels),
       });
       await fetch("/api/competencies/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newCompetencies),
+        body: JSON.stringify(safeCompetencies),
       });
       await fetch("/api/competency-links/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newLinks),
       });
-      console.log("[useCompetencyStore] ✅ Synced to backend");
+
+      console.log("[useCompetencyStore] ✅ Synced to backend with normalized IDs");
     } catch (err) {
       console.error("[useCompetencyStore] ❌ Failed to sync with backend", err);
       if (notify) notify("⚠️ Failed to sync with server. Local copy saved.");

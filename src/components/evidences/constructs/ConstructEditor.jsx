@@ -22,7 +22,7 @@ export default function ConstructEditor({ constructs, setConstructs, evidences }
 
   const addConstruct = () => {
     const newConstruct = {
-      id: `c${Date.now()}`,
+      id: `con${Date.now()}`,
       text: "",
       competencyId: "",
       evidenceId: "",
