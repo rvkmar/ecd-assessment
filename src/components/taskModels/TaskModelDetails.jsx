@@ -19,7 +19,8 @@ export default function TaskModelDetails({ taskModel, onClose }) {
 
   if (!taskModel) return null;
 
-  const getEvidenceModel = (id) => evidenceModels.find((m) => m.id === id);
+  const getEvidenceModel = (id) =>
+    evidenceModels.find((m) => m.id === id);
 
   const getEvidenceDescription = (id) => {
     for (const em of evidenceModels) {
@@ -42,22 +43,6 @@ export default function TaskModelDetails({ taskModel, onClose }) {
     return q ? (q.stem || q.text || q.id) : id;
   };
 
-  // Group expectedObservations by evidenceModel
-  const groupedEO = {};
-  for (const emId of taskModel.evidenceModelIds || []) {
-    groupedEO[emId] = [];
-  }
-  for (const eo of taskModel.expectedObservations || []) {
-    for (const em of evidenceModels) {
-      const hasObs = (em.observations || []).some((o) => o.id === eo.observationId);
-      const hasEv = (em.evidences || []).some((e) => e.id === eo.evidenceId);
-      if (hasObs || hasEv) {
-        if (!groupedEO[em.id]) groupedEO[em.id] = [];
-        groupedEO[em.id].push(eo);
-      }
-    }
-  }
-
   return (
     <Modal
       isOpen={!!taskModel}
@@ -66,77 +51,93 @@ export default function TaskModelDetails({ taskModel, onClose }) {
       message=""
     >
       <Card>
+        {/* Metadata */}
         <p>
           <strong>Description:</strong> {taskModel.description || "-"}
         </p>
         <p>
           <strong>Difficulty:</strong> {taskModel.difficulty || "-"}
         </p>
-
         <p>
           <strong>Actions:</strong>{" "}
-          {taskModel.actions && taskModel.actions.length
-            ? taskModel.actions.join(", ")
-            : "-"}
+          {taskModel.actions?.length ? taskModel.actions.join(", ") : "-"}
         </p>
 
-        <h4 className="mt-3 font-semibold">Expected Observations & Item Mappings</h4>
-        {Object.keys(groupedEO).length > 0 ? (
-          Object.entries(groupedEO).map(([emId, eoList]) => {
-            const em = getEvidenceModel(emId);
-            return (
-              <div key={emId} className="mb-3">
-                <p className="font-medium text-blue-600">
-                  Evidence Model: {em ? em.name : emId}
-                </p>
-                {eoList.length > 0 ? (
-                  <ul className="list-disc ml-5">
-                    {eoList.map((eo, i) => {
-                      const mapping = (taskModel.itemMappings || []).find(
-                        (m) =>
-                          m.observationId === eo.observationId &&
-                          m.evidenceId === eo.evidenceId
-                      );
-                      return (
-                        <li key={i}>
-                          Observation:{" "}
-                          <span className="italic">
-                            {getObservationDescription(eo.observationId)}
-                          </span>{" "}
-                          (<code>{eo.observationId}</code>), Evidence:{" "}
-                          <span className="italic">
-                            {getEvidenceDescription(eo.evidenceId)}
-                          </span>{" "}
-                          (<code>{eo.evidenceId}</code>)
-                          {mapping ? (
-                            <div className="ml-4 text-sm text-green-700">
-                              ↳ Linked Item:{" "}
-                              <span className="italic">
-                                {getQuestionText(mapping.itemId)}
-                              </span>{" "}
-                              (<code>{mapping.itemId}</code>)
-                            </div>
-                          ) : (
-                            <div className="ml-4 text-sm text-red-500">
-                              ↳ No item mapped
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-500 ml-5">No pairs defined</p>
-                )}
-              </div>
-            );
-          })
+        {/* ✅ Created & Last updated */}
+        <div className="text-xs text-gray-400 mt-2 space-y-1">
+          {taskModel.createdAt && (
+            <p>Created: {new Date(taskModel.createdAt).toLocaleString()}</p>
+          )}
+          {taskModel.updatedAt && (
+            <p>Last updated: {new Date(taskModel.updatedAt).toLocaleString()}</p>
+          )}
+        </div>
+
+        {/* Linked Evidence Models */}
+        <h4 className="mt-3 font-semibold">Linked Evidence Models</h4>
+        {taskModel.evidenceModelIds?.length > 0 ? (
+          <ul className="list-disc ml-5">
+            {taskModel.evidenceModelIds.map((emId) => {
+              const em = getEvidenceModel(emId);
+              return (
+                <li key={emId}>
+                  {em?.name || emId}{" "}
+                  <span className="text-gray-500">({emId})</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500">None</p>
+        )}
+
+        {/* Expected Observations */}
+        <h4 className="mt-3 font-semibold">Expected Observations</h4>
+        {taskModel.expectedObservations?.length > 0 ? (
+          <ul className="list-disc ml-5">
+            {taskModel.expectedObservations.map((eo, i) => (
+              <li key={i}>
+                Obs:{" "}
+                <span className="italic">
+                  {getObservationDescription(eo.observationId)}
+                </span>{" "}
+                <span className="text-gray-500">
+                  ({eo.observationId})
+                </span>
+                , Ev:{" "}
+                <span className="italic">
+                  {getEvidenceDescription(eo.evidenceId)}
+                </span>{" "}
+                <span className="text-gray-500">
+                  ({eo.evidenceId})
+                </span>
+              </li>
+            ))}
+          </ul>
         ) : (
           <p className="text-sm text-gray-500">None defined</p>
         )}
 
+        {/* Item Mappings */}
+        <h4 className="mt-3 font-semibold">Item Mappings</h4>
+        {taskModel.itemMappings?.length > 0 ? (
+          <ul className="list-disc ml-5">
+            {taskModel.itemMappings.map((m, i) => (
+              <li key={i}>
+                Obs: <code>{m.observationId}</code>, Ev:{" "}
+                <code>{m.evidenceId}</code> ↳ Item:{" "}
+                <span className="italic">{getQuestionText(m.itemId)}</span>{" "}
+                <span className="text-gray-500">({m.itemId})</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500">No items mapped</p>
+        )}
+
+        {/* Sub-Tasks */}
         <h4 className="mt-3 font-semibold">Sub-Tasks</h4>
-        {taskModel.subTaskIds && taskModel.subTaskIds.length > 0 ? (
+        {taskModel.subTaskIds?.length > 0 ? (
           <ul className="list-disc ml-5">
             {taskModel.subTaskIds.map((id) => (
               <li key={id}>
