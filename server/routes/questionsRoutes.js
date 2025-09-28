@@ -13,6 +13,20 @@ router.get("/", (req, res) => {
 });
 
 // ------------------------------
+// GET /api/questions/:id
+// ------------------------------
+router.get("/:id", (req, res) => {
+  const { id } = req.params;
+  const db = loadDB();
+  if (!db.questions) db.questions = [];
+  const question = db.questions.find((q) => q.id === id);
+  if (!question) {
+    return res.status(404).json({ error: "Question not found" });
+  }
+  res.json(question);
+});
+
+// ------------------------------
 // POST /api/questions
 // ------------------------------
 router.post("/", (req, res) => {

@@ -60,6 +60,14 @@ router.post("/", (req, res) => {
 });
 
 // ------------------------------
+// GET /api/sessions
+// ------------------------------
+router.get("/", (req, res) => {
+  const db = loadDB();
+  res.json(db.sessions || []);
+});
+
+// ------------------------------
 // GET /api/sessions/:id
 // ------------------------------
 router.get("/:id", (req, res) => {
