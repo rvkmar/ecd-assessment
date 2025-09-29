@@ -43,6 +43,20 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
     setSelectedTasks(newList);
   };
 
+  const handleStrategyChange = (val) => {
+    setSelectionStrategy(val);
+    // Pre-fill sensible defaults based on strategy
+    if (val === "fixed") {
+      setNextTaskPolicyText("{}");
+    } else if (val === "IRT") {
+      setNextTaskPolicyText(JSON.stringify({ irt: { initialTheta: 0, maxStdErr: 0.5 } }, null, 2));
+    } else if (val === "BayesianNetwork") {
+      setNextTaskPolicyText(JSON.stringify({ bn: { entropyThreshold: 0.2 } }, null, 2));
+    } else if (val === "custom") {
+      setNextTaskPolicyText(JSON.stringify({ custom: { rule: "define here" } }, null, 2));
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!studentId) return notify("Please select a student");
@@ -56,7 +70,7 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
     }
 
     const payload = {
-      id: model.id, // may be undefined for new
+      id: model.id,
       studentId,
       taskIds: selectedTasks,
       selectionStrategy,
@@ -133,7 +147,7 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
 
       <div>
         <label className="block font-medium">Selection Strategy</label>
-        <select value={selectionStrategy} onChange={(e) => setSelectionStrategy(e.target.value)} className="border p-2 rounded w-full">
+        <select value={selectionStrategy} onChange={(e) => handleStrategyChange(e.target.value)} className="border p-2 rounded w-full">
           <option value="fixed">Fixed (sequential)</option>
           <option value="IRT">IRT (adaptive)</option>
           <option value="BayesianNetwork">Bayesian Network (adaptive)</option>
@@ -141,11 +155,13 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
         </select>
       </div>
 
-      <div>
-        <label className="block font-medium">Next Task Policy (JSON)</label>
-        <textarea value={nextTaskPolicyText} onChange={(e) => setNextTaskPolicyText(e.target.value)} rows={6} className="border p-2 rounded w-full font-mono text-sm" />
-        <p className="text-xs text-gray-400 mt-1">Provide policy configuration as JSON. Example: {`{ "irt": { "lr": 0.1 } }`}</p>
-      </div>
+      {(selectionStrategy === "IRT" || selectionStrategy === "BayesianNetwork" || selectionStrategy === "custom") && (
+        <div>
+          <label className="block font-medium">Next Task Policy (JSON)</label>
+          <textarea value={nextTaskPolicyText} onChange={(e) => setNextTaskPolicyText(e.target.value)} rows={6} className="border p-2 rounded w-full font-mono text-sm" />
+          <p className="text-xs text-gray-400 mt-1">Provide policy configuration as JSON.</p>
+        </div>
+      )}
 
       <div className="flex space-x-2">
         <button type="submit" disabled={busy} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save Session</button>

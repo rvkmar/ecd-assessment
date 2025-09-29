@@ -308,6 +308,43 @@ router.get("/:id/next-task", (req, res) => {
 });
 
 // ------------------------------
+// POST /api/sessions/:id/pause
+// ------------------------------
+router.post("/:id/pause", (req, res) => {
+  const { id } = req.params;
+  const db = loadDB();
+  if (!db.sessions) db.sessions = [];
+  const idx = db.sessions.findIndex((s) => s.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Session not found" });
+
+  db.sessions[idx].status = "paused";
+  db.sessions[idx].updatedAt = new Date().toISOString();
+  saveDB(db);
+  res.json(db.sessions[idx]);
+});
+
+// ------------------------------
+// POST /api/sessions/:id/resume
+// ------------------------------
+router.post("/:id/resume", (req, res) => {
+  const { id } = req.params;
+  const db = loadDB();
+  if (!db.sessions) db.sessions = [];
+  const idx = db.sessions.findIndex((s) => s.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Session not found" });
+
+  if (db.sessions[idx].status !== "paused") {
+    return res.status(400).json({ error: "Session is not paused" });
+  }
+
+  db.sessions[idx].status = "in-progress";
+  db.sessions[idx].updatedAt = new Date().toISOString();
+  saveDB(db);
+  res.json(db.sessions[idx]);
+});
+
+
+// ------------------------------
 // POST /api/sessions/:id/finish
 // ------------------------------
 router.post("/:id/finish", (req, res) => {

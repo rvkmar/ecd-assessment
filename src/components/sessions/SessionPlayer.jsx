@@ -33,6 +33,9 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
   const [textAnswer, setTextAnswer] = useState("");
   const [selectedRubricLevel, setSelectedRubricLevel] = useState(null);
 
+  // Local state for banner messages
+  const [showResumedBanner, setShowResumedBanner] = useState(false);
+
   // derive sessionId from URL if not passed
   useEffect(() => {
     if (propSessionId) return;
@@ -71,6 +74,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     setTextAnswer("");
     setSelectedRubricLevel(null);
   }, [session]);
+
+  // Show resumed banner briefly if session status changes to in-progress
+  useEffect(() => {
+    if (session?.status === "in-progress") {
+      setShowResumedBanner(true);
+      const timer = setTimeout(() => setShowResumedBanner(false), 4000); // 4 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [session?.status]);
+
 
   async function loadNextTask() {
     setLoadingTask(true);
@@ -229,11 +242,29 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
   if (!sessionId) return <div className="p-6">Session id not provided in props or URL.</div>;
   if (loading) return <div className="p-6">Loading session...</div>;
 
+  // Banner messages
+  let banner = null;
+  if (session?.status === "paused") {
+    banner = (
+      <div className="mb-4 p-3 rounded bg-orange-100 text-orange-800 border border-orange-300">
+        ⚠️ This session has been <strong>paused</strong> by your teacher. You cannot continue until it is resumed.
+      </div>
+    );
+  } else if (showResumedBanner) {
+    banner = (
+      <div className="mb-4 p-3 rounded bg-green-100 text-green-800 border border-green-300">
+        ✅ Session resumed — you may continue.
+      </div>
+    );
+  }
+
+
   const progressTotal = (session?.taskIds || []).length || 0;
   const progressDone = (session?.responses || []).length || 0;
 
   return (
     <div className="p-6 space-y-4">
+      {banner}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Session Player: {sessionId}</h2>
         <div className="text-sm text-gray-600">Student: {session?.studentId || "(unassigned)"}</div>
@@ -333,9 +364,32 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
               )}
 
               <div className="flex items-center space-x-2">
-                <button type="submit" disabled={submitting} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Submit Answer</button>
-                <button type="button" onClick={loadNextTask} className="px-4 py-2 bg-gray-200 rounded">Skip</button>
-                <button type="button" onClick={handleFinish} className="px-4 py-2 bg-red-500 text-white rounded">Finish Session</button>
+                <button
+                  type="submit"
+                  disabled={submitting || session?.status === "paused"}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Submit Answer
+                </button>
+
+                <button
+                  type="button"
+                  onClick={loadNextTask}
+                  disabled={session?.status === "paused"}
+                  className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
+                >
+                  Skip
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFinish}
+                  disabled={session?.status === "paused"}
+                  className="px-4 py-2 bg-red-500 text-white rounded disabled:opacity-50"
+                >
+                  Finish Session
+                </button>
+
               </div>
             </form>
           ) : (

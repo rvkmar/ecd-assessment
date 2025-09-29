@@ -17,6 +17,10 @@ export default function SessionBuilder({ notify }) {
 
   // Load sessions + supporting collections
   useEffect(() => {
+    loadAll();
+  }, []);
+
+  const loadAll = () => {
     setLoading(true);
     Promise.all([
       fetch("/api/sessions").then((r) => r.json()),
@@ -33,40 +37,24 @@ export default function SessionBuilder({ notify }) {
         notify?.("Failed to load sessions or supporting data");
       })
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  // Create or update session
+  // Create session only (no PUT/update)
   const handleSave = async (sessionPayload) => {
     setBusy(true);
     try {
-      if (sessionPayload.id) {
-        const res = await fetch(`/api/sessions/${sessionPayload.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(sessionPayload),
-        });
-        if (res.ok) {
-          const updated = await res.json();
-          setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-          notify?.("Session updated.");
-        } else {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Update not supported (status ${res.status})`);
-        }
-      } else {
-        const res = await fetch(`/api/sessions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(sessionPayload),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Failed to create session");
-        }
-        const created = await res.json();
-        setSessions((prev) => [...prev, created]);
-        notify?.("Session created.");
+      const res = await fetch(`/api/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sessionPayload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create session");
       }
+      const created = await res.json();
+      setSessions((prev) => [...prev, created]);
+      notify?.("Session created.");
       setSelectedSession(null);
     } catch (e) {
       console.error(e);
@@ -95,6 +83,32 @@ export default function SessionBuilder({ notify }) {
     }
   };
 
+  const handlePause = async (id) => {
+    try {
+      const res = await fetch(`/api/sessions/${id}/pause`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to pause session");
+      const updated = await res.json();
+      setSessions((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      notify?.("Session paused.");
+    } catch (e) {
+      console.error(e);
+      notify?.("❌ Failed to pause session");
+    }
+  };
+
+  const handleResume = async (id) => {
+    try {
+      const res = await fetch(`/api/sessions/${id}/resume`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to resume session");
+      const updated = await res.json();
+      setSessions((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      notify?.("Session resumed.");
+    } catch (e) {
+      console.error(e);
+      notify?.("❌ Failed to resume session");
+    }
+  };
+
   const handlePlay = (session) => {
     window.location.href = `/sessions/${session.id}/player`;
   };
@@ -120,6 +134,7 @@ export default function SessionBuilder({ notify }) {
                 studentId: students[0]?.id || "",
                 selectionStrategy: "fixed",
                 nextTaskPolicy: {},
+                status: "in-progress",
               })
             }
           >
@@ -133,7 +148,8 @@ export default function SessionBuilder({ notify }) {
         sessions={sessions}
         students={students}
         onPlay={handlePlay}
-        onEdit={(s) => setSelectedSession(s)}
+        onPause={handlePause}
+        onResume={handleResume}
         onDelete={handleDelete}
         onViewReport={handleViewReport}
       />
@@ -141,7 +157,7 @@ export default function SessionBuilder({ notify }) {
       {/* Editor / Form area */}
       {selectedSession && (
         <div className="p-4 border rounded-md bg-gray-50">
-          <h3 className="text-lg font-semibold">{selectedSession.id ? `Edit Session ${selectedSession.id}` : "New Session"}</h3>
+          <h3 className="text-lg font-semibold">New Session</h3>
           <div className="mt-3">
             <SessionForm
               model={selectedSession}
