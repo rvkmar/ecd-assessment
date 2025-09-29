@@ -52,19 +52,25 @@ export default function SessionReport({ sessionId, onClose }) {
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 space-x-2">
+      <div className="mb-4 flex space-x-2">
         <button
-          className={`px-3 py-1 rounded ${tab === "learner" ? "bg-purple-600 text-white" : "bg-gray-200"}`}
+          className={`px-3 py-1 rounded ${tab === "learner" ? "bg-purple-600 text-white" : "bg-gray-200 hover:bg-gray-300"}`}
           onClick={() => setTab("learner")}
-        >Learner Feedback</button>
+        >
+          Learner Feedback
+        </button>
         <button
-          className={`px-3 py-1 rounded ${tab === "teacher" ? "bg-green-600 text-white" : "bg-gray-200"}`}
+          className={`px-3 py-1 rounded ${tab === "teacher" ? "bg-green-600 text-white" : "bg-gray-200 hover:bg-gray-300"}`}
           onClick={() => setTab("teacher")}
-        >Teacher Report</button>
+        >
+          Teacher Report
+        </button>
         <button
-          className={`px-3 py-1 rounded ${tab === "raw" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+          className={`px-3 py-1 rounded ${tab === "raw" ? "bg-blue-600 text-white" : "bg-gray-200 hover:bg-gray-300"}`}
           onClick={() => setTab("raw")}
-        >Raw JSON</button>
+        >
+          Raw JSON
+        </button>
       </div>
 
       {/* Content */}

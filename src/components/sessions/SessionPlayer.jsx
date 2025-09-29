@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Modal from "../ui/Modal";
 
 // SessionPlayer.jsx
 // Runtime delivery component for a session.
@@ -35,6 +36,11 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
 
   // Local state for banner messages
   const [showResumedBanner, setShowResumedBanner] = useState(false);
+
+  // Prevent multiple finish clicks
+  const [finishing, setFinishing] = useState(false);
+  const [finishModalOpen, setFinishModalOpen] = useState(false);
+
 
   // derive sessionId from URL if not passed
   useEffect(() => {
@@ -236,28 +242,44 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     } catch (e) {
       console.error(e);
       alert("Failed to finish session: " + e.message);
+      setFinishing(false); // unlock if failed
     }
   }
 
-  if (!sessionId) return <div className="p-6">Session id not provided in props or URL.</div>;
-  if (loading) return <div className="p-6">Loading session...</div>;
-
-  // Banner messages
-  let banner = null;
-  if (session?.status === "paused") {
-    banner = (
-      <div className="mb-4 p-3 rounded bg-orange-100 text-orange-800 border border-orange-300">
-        ⚠️ This session has been <strong>paused</strong> by your teacher. You cannot continue until it is resumed.
-      </div>
-    );
-  } else if (showResumedBanner) {
-    banner = (
-      <div className="mb-4 p-3 rounded bg-green-100 text-green-800 border border-green-300">
-        ✅ Session resumed — you may continue.
-      </div>
-    );
+  async function confirmFinish() {
+    setFinishing(true);  // lock button immediately
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/finish`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to finish session");
+      const updated = await res.json();
+      setSession(updated);
+      setNoMoreTasks(true);
+      if (onFinished) onFinished(updated);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to finish session: " + e.message);
+      setFinishing(false); // unlock only if failed
+    }
   }
+  
+    if (!sessionId) return <div className="p-6">Session id not provided in props or URL.</div>;
+    if (loading) return <div className="p-6">Loading session...</div>;
 
+    // Banner messages
+    let banner = null;
+    if (session?.status === "paused") {
+      banner = (
+        <div className="mb-4 p-3 rounded bg-orange-100 text-orange-800 border border-orange-300">
+          ⚠️ This session has been <strong>paused</strong> by your teacher. You cannot continue until it is resumed.
+        </div>
+      );
+    } else if (showResumedBanner) {
+      banner = (
+        <div className="mb-4 p-3 rounded bg-green-100 text-green-800 border border-green-300">
+          ✅ Session resumed — you may continue.
+        </div>
+      );
+    }
 
   const progressTotal = (session?.taskIds || []).length || 0;
   const progressDone = (session?.responses || []).length || 0;
@@ -284,9 +306,31 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
         <div className="p-4 border rounded bg-green-50">
           <p className="font-medium">No more tasks available for this session.</p>
           <p className="text-sm text-gray-600">You can finish the session or review responses.</p>
-          <div className="mt-3 space-x-2">
-            <button onClick={handleFinish} className="px-3 py-1 bg-green-600 text-white rounded">Finish Session</button>
-            <a href={`/api/reports/session/${sessionId}`} target="_blank" rel="noreferrer" className="px-3 py-1 bg-indigo-600 text-white rounded">Open Report (raw JSON)</a>
+          <div className="mt-3 flex items-center space-x-2">
+            {session?.status !== "completed" && (
+              <button
+                onClick={() => setFinishModalOpen(true)}
+                disabled={session?.status === "paused" || finishing}
+                className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+              >
+                {finishing ? "Finishing..." : "Finish Session"}
+              </button>
+            )}
+            {session?.status === "completed" && (
+              <div className="flex items-center space-x-2">
+                <div className="px-3 py-1 bg-green-500 text-white rounded inline-block">
+                  ✅ Session Completed
+                </div>
+                <a
+                  href={`/api/reports/session/${sessionId}/learner-feedback`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1 bg-purple-600 text-white rounded"
+                >
+                  View My Report
+                </a>
+              </div>
+            )}
           </div>
         </div>
       ) : task ? (
@@ -381,15 +425,34 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                   Skip
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleFinish}
-                  disabled={session?.status === "paused"}
-                  className="px-4 py-2 bg-red-500 text-white rounded disabled:opacity-50"
-                >
-                  Finish Session
-                </button>
-
+                {session?.status !== "completed" && (
+                  <button
+                    type="button"
+                    onClick={() => setFinishModalOpen(true)}
+                    disabled={session?.status === "paused" || finishing}
+                    className="px-3 py-1 bg-red-500 text-white rounded disabled:opacity-50"
+                  >
+                    {finishing ? "Finishing..." : "Finish Session"}
+                  </button>
+                )}
+                
+                {session?.status === "completed" && (
+                  <div className="px-3 py-1 bg-green-500 text-white rounded inline-block">
+                    ✅ Session Completed
+                  </div>
+                )}
+                
+                {session?.status === "completed" && (
+                  <a
+                    href={`/api/reports/session/${sessionId}/learner-feedback`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 bg-purple-600 text-white rounded ml-2"
+                  >
+                    View My Report
+                  </a>
+                )}
+                
               </div>
             </form>
           ) : (
@@ -416,6 +479,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
           <p className="text-sm text-gray-500">No responses yet.</p>
         )}
       </div>
+      
+      {/* Finish confirmation modal */}
+      <Modal
+        isOpen={finishModalOpen}
+        onClose={() => setFinishModalOpen(false)}
+        onConfirm={confirmFinish}
+        title="Finish Session"
+        message="Are you sure you want to finish this session? This cannot be undone."
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+      />
     </div>
   );
 }

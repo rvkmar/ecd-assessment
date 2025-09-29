@@ -350,14 +350,16 @@ router.post("/:id/resume", (req, res) => {
 router.post("/:id/finish", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
-  const session = db.sessions.find(s => s.id === id);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+  if (!db.sessions) db.sessions = [];
+  const idx = db.sessions.findIndex((s) => s.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Session not found" });
 
-  session.isCompleted = true;
-  session.updatedAt = new Date().toISOString();
+  db.sessions[idx].status = "completed";   // ✅ mark completed
+  db.sessions[idx].isCompleted = true;     // keep legacy flag if used
+  db.sessions[idx].updatedAt = new Date().toISOString();
+
   saveDB(db);
-
-  res.json(session);
+  res.json(db.sessions[idx]);
 });
 
 export default router;

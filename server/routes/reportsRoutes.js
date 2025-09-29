@@ -123,7 +123,7 @@ router.get("/:id/feedback", (req, res) => {
 // ------------------------------
 // GET /api/reports/session/:id/learner-feedback
 // ------------------------------
-router.get("/:id/learner-feedback", (req, res) => {
+router.get("/session/:id/learner-feedback", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
   const session = db.sessions.find(s => s.id === id);
@@ -176,7 +176,7 @@ router.get("/:id/learner-feedback", (req, res) => {
 // ------------------------------
 // GET /api/reports/session/:id/teacher-report
 // ------------------------------
-router.get("/:id/teacher-report", (req, res) => {
+router.get("/session/:id/teacher-report", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
   const session = db.sessions.find((s) => s.id === id);
