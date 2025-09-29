@@ -68,57 +68,55 @@ router.get("/session/:id", (req, res) => {
   res.json(report);
 });
 
-
-
 // ------------------------------
 // GET /api/reports/session/:id/feedback
 // ------------------------------
-router.get("/:id/feedback", (req, res) => {
-  const { id } = req.params;
-  const db = loadDB();
-  const session = db.sessions.find((s) => s.id === id);
-  if (!session) return res.status(404).json({ error: "Session not found" });
+// router.get("/:id/feedback", (req, res) => {
+//   const { id } = req.params;
+//   const db = loadDB();
+//   const session = db.sessions.find((s) => s.id === id);
+//   if (!session) return res.status(404).json({ error: "Session not found" });
 
-  const feedback = {
-    sessionId: id,
-    strategy: session.selectionStrategy,
-    responses: session.responses.length,
-    constructs: [],
-    recommendations: [],
-    studentModel: session.studentModel || {},
-  };
+//   const feedback = {
+//     sessionId: id,
+//     strategy: session.selectionStrategy,
+//     responses: session.responses.length,
+//     constructs: [],
+//     recommendations: [],
+//     studentModel: session.studentModel || {},
+//   };
 
-  // IRT feedback
-  if (session.selectionStrategy === "IRT" && session.studentModel?.irtTheta !== undefined) {
-    const theta = session.studentModel.irtTheta;
-    feedback.constructs.push({
-      type: "IRT",
-      estimate: theta,
-      level: theta > 1 ? "Advanced" : theta > 0 ? "Proficient" : "Needs Support",
-    });
-    feedback.recommendations.push("Assign items near current theta for better precision.");
-  }
+//   // IRT feedback
+//   if (session.selectionStrategy === "IRT" && session.studentModel?.irtTheta !== undefined) {
+//     const theta = session.studentModel.irtTheta;
+//     feedback.constructs.push({
+//       type: "IRT",
+//       estimate: theta,
+//       level: theta > 1 ? "Advanced" : theta > 0 ? "Proficient" : "Needs Support",
+//     });
+//     feedback.recommendations.push("Assign items near current theta for better precision.");
+//   }
 
-  // BN feedback
-  if (session.selectionStrategy === "BayesianNetwork" && session.studentModel?.bnPosteriors) {
-    for (const [node, prob] of Object.entries(session.studentModel.bnPosteriors)) {
-      feedback.constructs.push({
-        type: "BayesianNetwork",
-        node,
-        probability: prob,
-        level: prob > 0.7 ? "Strong" : prob > 0.4 ? "Developing" : "Needs Support",
-      });
-    }
-    feedback.recommendations.push("Focus on nodes with highest uncertainty.");
-  }
+//   // BN feedback
+//   if (session.selectionStrategy === "BayesianNetwork" && session.studentModel?.bnPosteriors) {
+//     for (const [node, prob] of Object.entries(session.studentModel.bnPosteriors)) {
+//       feedback.constructs.push({
+//         type: "BayesianNetwork",
+//         node,
+//         probability: prob,
+//         level: prob > 0.7 ? "Strong" : prob > 0.4 ? "Developing" : "Needs Support",
+//       });
+//     }
+//     feedback.recommendations.push("Focus on nodes with highest uncertainty.");
+//   }
 
-  // Default / generic
-  if (feedback.recommendations.length === 0) {
-    feedback.recommendations.push("Complete more tasks for a fuller assessment.");
-  }
+//   // Default / generic
+//   if (feedback.recommendations.length === 0) {
+//     feedback.recommendations.push("Complete more tasks for a fuller assessment.");
+//   }
 
-  res.json(feedback);
-});
+//   res.json(feedback);
+// });
 
 // ------------------------------
 // GET /api/reports/session/:id/learner-feedback
@@ -184,13 +182,62 @@ router.get("/session/:id/teacher-report", (req, res) => {
 
   const student = db.students?.find(stu => stu.id === session.studentId);
 
+  // 🔹 Pre-index collections for O(1) lookup
+  const taskMap = Object.fromEntries((db.tasks || []).map((t) => [t.id, t]));
+  const taskModelMap = Object.fromEntries((db.taskModels || []).map((tm) => [tm.id, tm]));
+  // const evidenceModelMap = Object.fromEntries((db.evidenceModels || []).map((em) => [em.id, em]));
+  const evidenceModelMap = {};
+    for (const em of db.evidenceModels || []) {
+      const obsMap = Object.fromEntries((em.observations || []).map((o) => [o.id, o]));
+      const constructMap = Object.fromEntries((em.constructs || []).map((c) => [c.id, c]));
+      evidenceModelMap[em.id] = { ...em, _obsMap: obsMap, _constructMap: constructMap };
+    }
+
   const report = {
     sessionId: id,
     studentId: session.studentId,
     studentName: student ? student.name : null,
     strategy: session.selectionStrategy,
     modelSummary: {},
-    responses: session.responses || [],
+    // 
+    responses: (session.responses || []).map((r) => {
+      const task = taskMap[r.taskId];
+      const tm = task ? taskModelMap[task.taskModelId] : null;
+
+      let competencyId = null;
+      let evidenceId = null;
+
+      if (tm) {
+        for (const emId of tm.evidenceModelIds || []) {
+           const em = evidenceModelMap[emId];
+           if (!em) continue;
+ 
+           if (r.observationId) {
+             const obs = em._obsMap[r.observationId];
+             if (obs) {
+               const construct = em._constructMap[obs.constructId];
+               if (construct) {
+                 competencyId = construct.competencyId || competencyId;
+                 evidenceId = construct.evidenceId || evidenceId;
+               }
+             }
+           }
+ 
+           if (!competencyId && em.constructs.length > 0) {
+             competencyId = em.constructs[0].competencyId || competencyId;
+             evidenceId = em.constructs[0].evidenceId || evidenceId;
+           }
+         }
+       }
+ 
+       return {
+         ...r,
+         taskModelId: task?.taskModelId || null,
+         competencyId,
+         evidenceId,
+       };
+     }),
+
     recommendations: {
       groupLevel: [],
       individualLevel: []
@@ -262,6 +309,17 @@ router.get("/teacher/class/:classId", (req, res) => {
     return res.json({ classId, summary: {}, recommendations: [] });
   }
 
+  // 🔹 Pre-index collections
+  const taskMap = Object.fromEntries((db.tasks || []).map((t) => [t.id, t]));
+
+  // Build evidenceModel maps for competency/evidence lookup
+  const evidenceModelMap = {};
+  for (const em of db.evidenceModels || []) {
+    const obsMap = Object.fromEntries((em.observations || []).map((o) => [o.id, o]));
+    const constructMap = Object.fromEntries((em.constructs || []).map((c) => [c.id, c]));
+    evidenceModelMap[em.id] = { ...em, _obsMap: obsMap, _constructMap: constructMap };
+  }
+
   const irtValues = [];
   const bnNodes = {};
   const capturedSummary = []; // 🔹 from Version 1
@@ -282,7 +340,7 @@ router.get("/teacher/class/:classId", (req, res) => {
 
     // collect captured evidence (🔹 from Version 1)
     for (const tid of session.taskIds || []) {
-      const task = db.tasks.find(t => t.id === tid);
+      const task = taskMap[tid];
       if (task) {
         capturedSummary.push({
           sessionId: session.id,
@@ -291,6 +349,26 @@ router.get("/teacher/class/:classId", (req, res) => {
           generatedObservationIds: task.generatedObservationIds || [],
           generatedEvidenceIds: task.generatedEvidenceIds || [],
         });
+      }
+    }
+  }
+
+  // 🔹 Compute competency/evidence coverage
+  const competencyCoverage = {};
+  const evidenceCoverage = {};
+  for (const cap of capturedSummary) {
+    for (const obsId of cap.generatedObservationIds || []) {
+      for (const em of Object.values(evidenceModelMap)) {
+        const obs = em._obsMap[obsId];
+        if (obs) {
+          const construct = em._constructMap[obs.constructId];
+          if (construct) {
+            competencyCoverage[construct.competencyId] =
+              (competencyCoverage[construct.competencyId] || 0) + 1;
+            evidenceCoverage[construct.evidenceId] =
+              (evidenceCoverage[construct.evidenceId] || 0) + 1;
+          }
+        }
       }
     }
   }
@@ -354,6 +432,8 @@ router.get("/teacher/class/:classId", (req, res) => {
       IRT: irtSummary,
       BayesianNetwork: bnSummary,
       captured: capturedSummary, // 🔹 from Version 1
+      competencyCoverage,
+      evidenceCoverage,
     },
     recommendations
   });
@@ -382,6 +462,17 @@ router.get("/teacher/district/:districtId", (req, res) => {
     classGroups[stu.classId].push(stu.id);
   }
 
+  // 🔹 Pre-index tasks for O(1) lookups
+  const taskMap = Object.fromEntries((db.tasks || []).map((t) => [t.id, t]));
+
+  // 🔹 Pre-index evidenceModels for competency/evidence lookup
+  const evidenceModelMap = {};
+  for (const em of db.evidenceModels || []) {
+    const obsMap = Object.fromEntries((em.observations || []).map((o) => [o.id, o]));
+    const constructMap = Object.fromEntries((em.constructs || []).map((c) => [c.id, c]));
+    evidenceModelMap[em.id] = { ...em, _obsMap: obsMap, _constructMap: constructMap };
+  }
+  
   const districtReport = {
     districtId,
     classes: {},
@@ -423,7 +514,7 @@ router.get("/teacher/district/:districtId", (req, res) => {
 
       // collect captured evidence/observations 🔹 from Version 1
       for (const tid of session.taskIds || []) {
-        const task = db.tasks.find(t => t.id === tid);
+        const task = taskMap[tid];
         if (task) {
           capturedSummary.push({
             sessionId: session.id,
@@ -501,6 +592,29 @@ router.get("/teacher/district/:districtId", (req, res) => {
 
   // 🔹 Attach captured evidence/observations summary
   districtReport.districtSummary.captured = capturedSummary;
+
+  // 🔹 Compute competency/evidence coverage across district
+  const competencyCoverage = {};
+  const evidenceCoverage = {};
+  for (const cap of capturedSummary) {
+    for (const obsId of cap.generatedObservationIds || []) {
+      for (const em of Object.values(evidenceModelMap)) {
+        const obs = em._obsMap[obsId];
+        if (obs) {
+          const construct = em._constructMap[obs.constructId];
+          if (construct) {
+            competencyCoverage[construct.competencyId] =
+              (competencyCoverage[construct.competencyId] || 0) + 1;
+            evidenceCoverage[construct.evidenceId] =
+              (evidenceCoverage[construct.evidenceId] || 0) + 1;
+          }
+        }
+      }
+    }
+  }
+
+  districtReport.districtSummary.competencyCoverage = competencyCoverage;
+  districtReport.districtSummary.evidenceCoverage = evidenceCoverage;
 
   res.json(districtReport);
 });

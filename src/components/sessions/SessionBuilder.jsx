@@ -20,23 +20,41 @@ export default function SessionBuilder({ notify }) {
     loadAll();
   }, []);
 
-  const loadAll = () => {
+  const loadAll = async () => {
     setLoading(true);
-    Promise.all([
-      fetch("/api/sessions").then((r) => r.json()),
-      fetch("/api/students").then((r) => r.json()),
-      fetch("/api/tasks").then((r) => r.json()),
-    ])
-      .then(([sessData, stuData, taskData]) => {
-        setSessions(sessData || []);
-        setStudents(stuData || []);
-        setTasks(taskData || []);
-      })
-      .catch((err) => {
-        console.error("Failed to load sessions/students/tasks", err);
-        notify?.("Failed to load sessions or supporting data");
-      })
-      .finally(() => setLoading(false));
+    try {
+      const [sessData, stuData, taskData] = await Promise.all([
+        fetch("/api/sessions").then((r) => r.json()),
+        fetch("/api/students").then((r) => r.json()),
+        fetch("/api/tasks").then((r) => r.json()),
+      ]);
+
+      // enrich tasks with taskModel info
+      const enrichedTasks = await Promise.all(
+        (taskData || []).map(async (t) => {
+          if (t.taskModelId) {
+            try {
+              const tm = await fetch(`/api/taskModels/${t.taskModelId}`).then(
+                (r) => r.json()
+              );
+              return { ...t, taskModel: tm };
+            } catch {
+              return t;
+            }
+          }
+          return t;
+        })
+      );
+
+      setSessions(sessData || []);
+      setStudents(stuData || []);
+      setTasks(enrichedTasks);
+    } catch (err) {
+      console.error("Failed to load sessions/students/tasks", err);
+      notify?.("❌ Failed to load sessions or supporting data");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Create session only (no PUT/update)

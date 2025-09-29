@@ -1,77 +1,145 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Modal from "../ui/Modal";
 
 // SessionPlayer.jsx
 // Runtime delivery component for a session.
-// Props:
-// - sessionId (optional). If not provided, component will attempt to read from URL (/sessions/:id/player)
-// - onFinished (optional) callback when session is finished
-//
-// Behavior:
-// 1. Load session via GET /api/sessions/:id
-// 2. Ask backend for next task via GET /api/sessions/:id/next-task
-// 3. For the returned taskId, fetch /api/tasks/:id and linked question (/api/questions/:id) + taskModel
-// 4. Render UI for question types: mcq, constructed/open, rubric (best-effort)
-// 5. Submit via POST /api/sessions/:id/submit with fields expected by backend
-// 6. Repeat until no next task; allow finishing session via POST /api/sessions/:id/finish
+// Refactor chunk 1/5:
+//  - imports, core state, helpers to enrich tasks with taskModel metadata
+//  - sessionId derivation and initial session+evidenceModels load
+
 
 export default function SessionPlayer({ sessionId: propSessionId, onFinished }) {
+  // ----- session identification -----
   const [sessionId, setSessionId] = useState(propSessionId || null);
-  const [session, setSession] = useState(null);
+
+  // ----- domain state -----
+  const [session, setSession] = useState(null); // full session object from backend
   const [currentTaskId, setCurrentTaskId] = useState(null);
-  const [task, setTask] = useState(null);
-  const [taskModel, setTaskModel] = useState(null);
+  const [task, setTask] = useState(null); // enriched task for currentTaskId
+  const [taskModel, setTaskModel] = useState(null); // enriched taskModel for the current task
   const [question, setQuestion] = useState(null);
   const [evidenceModels, setEvidenceModels] = useState([]);
 
+  // ----- UI state -----
   const [loading, setLoading] = useState(true);
   const [loadingTask, setLoadingTask] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [noMoreTasks, setNoMoreTasks] = useState(false);
 
-  // UI inputs
+  // Inputs / runtime state
   const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [textAnswer, setTextAnswer] = useState("");
   const [selectedRubricLevel, setSelectedRubricLevel] = useState(null);
 
-  // Local state for banner messages
+  // Banners / messages / locks
   const [showResumedBanner, setShowResumedBanner] = useState(false);
-
-  // Prevent multiple finish clicks
   const [finishing, setFinishing] = useState(false);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
 
+  // keep a ref to avoid stale closures in async helpers
+  const sessionIdRef = useRef(sessionId);
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
 
-  // derive sessionId from URL if not passed
+  // ----- derive sessionId from URL if prop not provided -----
   useEffect(() => {
     if (propSessionId) return;
     try {
       const m = window.location.pathname.match(/\/sessions\/(s[0-9]+)\/player/);
       if (m) setSessionId(m[1]);
     } catch (e) {
-      // ignore
+      // ignore quietly
     }
   }, [propSessionId]);
 
-  // Load session and evidence models
+  // ----- helper: fetch JSON safely -----
+  async function fetchJsonSafe(url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      // bubble up; callers may handle
+      throw err;
+    }
+  }
+
+  // ----- helper: fetch and attach taskModel to a task object -----
+  // Returns a new task object with `taskModel` populated if available.
+  async function enrichTaskWithModel(taskObj) {
+    if (!taskObj) return taskObj;
+    if (taskObj.taskModel) return taskObj; // already enriched
+    if (!taskObj.taskModelId) return taskObj;
+
+    try {
+      const tm = await fetchJsonSafe(`/api/taskModels/${taskObj.taskModelId}`);
+      return { ...taskObj, taskModel: tm };
+    } catch (e) {
+      // failed to enrich; return original task (silently)
+      console.warn(`Failed to fetch taskModel ${taskObj.taskModelId}:`, e);
+      return taskObj;
+    }
+  }
+
+  // ----- helper: given a questionId and a (possibly enriched) taskModel,
+  // find the itemMapping (if any) that links question -> observation/evidence -----
+  function findItemMapping(taskModelObj, questionId) {
+    if (!taskModelObj || !Array.isArray(taskModelObj.itemMappings) || !questionId) return null;
+    return taskModelObj.itemMappings.find((m) => m.itemId === questionId) || null;
+  }
+
+  // ----- initial load: session + evidenceModels -----
   useEffect(() => {
     if (!sessionId) return;
+
+    let cancelled = false;
     setLoading(true);
-    Promise.all([
-      fetch(`/api/sessions/${sessionId}`).then((r) => r.json()),
-      fetch(`/api/evidenceModels`).then((r) => r.json()).catch(() => []),
-    ])
-      .then(([sess, ems]) => {
+
+    (async () => {
+      try {
+        // fetch session and evidenceModels in parallel
+        const [sess, ems] = await Promise.all([
+          fetchJsonSafe(`/api/sessions/${sessionId}`),
+          fetch("/api/evidenceModels").then((r) => r.ok ? r.json() : []),
+        ]);
+
+        if (cancelled) return;
+
         setSession(sess || null);
+
+        // enrich all tasks in the session
+        let enrichedSess = sess;
+        if (sess?.taskIds?.length) {
+          const enrichedTasks = await Promise.all(
+            sess.taskIds.map(async (tid) => {
+              try {
+                const t = await fetchJsonSafe(`/api/tasks/${tid}`);
+                return await enrichTaskWithModel(t);
+              } catch {
+                return { id: tid };
+              }
+            })
+          );
+          enrichedSess = { ...sess, tasks: enrichedTasks };
+        }
+ 
+        setSession(enrichedSess || null);
+
         setEvidenceModels(ems || []);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to load session or evidenceModels", err);
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
-  // Load next task whenever session updates
+
   useEffect(() => {
     if (!session) return;
     loadNextTask();
@@ -81,23 +149,26 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     setSelectedRubricLevel(null);
   }, [session]);
 
-  // Show resumed banner briefly if session status changes to in-progress
+  // ----- show resumed banner briefly when status flips to in-progress -----
   useEffect(() => {
     if (session?.status === "in-progress") {
       setShowResumedBanner(true);
-      const timer = setTimeout(() => setShowResumedBanner(false), 4000); // 4 seconds
+      const timer = setTimeout(() => setShowResumedBanner(false), 4000);
       return () => clearTimeout(timer);
     }
   }, [session?.status]);
 
-
+  // ----- loadNextTask: ask backend for next-task, enrich with taskModel -----
   async function loadNextTask() {
     setLoadingTask(true);
     setNoMoreTasks(false);
+
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/next-task`);
+      const res = await fetch(`/api/sessions/${sessionIdRef.current}/next-task`);
       const data = await res.json();
+
       if (!data || !data.taskId) {
+        // no tasks left
         setCurrentTaskId(null);
         setTask(null);
         setQuestion(null);
@@ -109,29 +180,28 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
       const tid = data.taskId;
       setCurrentTaskId(tid);
 
-      // fetch task, question, taskModel
-      const [taskRes, taskModelRes] = await Promise.all([
-        fetch(`/api/tasks/${tid}`).then((r) => r.json()),
-        // task object has taskModelId
-        // If taskModelId unavailable, then taskModel fetch will fail gracefully
-      ]);
-
-      setTask(taskRes || null);
-
-      if (taskRes?.taskModelId) {
-        try {
-          const tm = await fetch(`/api/taskModels/${taskRes.taskModelId}`).then((r) => r.json());
-          setTaskModel(tm || null);
-        } catch (e) {
-          setTaskModel(null);
-        }
+      // fetch the task from API
+      let taskObj = null;
+      try {
+        taskObj = await fetchJsonSafe(`/api/tasks/${tid}`);
+      } catch (e) {
+        console.error("Failed to fetch task:", e);
+        setTask(null);
+        setTaskModel(null);
+        setQuestion(null);
+        return;
       }
 
-      if (taskRes?.questionId) {
+      // enrich with taskModel metadata
+      const enrichedTask = await enrichTaskWithModel(taskObj);
+      setTask(enrichedTask);
+      setTaskModel(enrichedTask.taskModel || null);
+
+      // fetch question if linked
+      if (enrichedTask?.questionId) {
         try {
-          const q = await fetch(`/api/questions/${taskRes.questionId}`);
-          if (q.ok) setQuestion(await q.json());
-          else setQuestion(null);
+          const q = await fetchJsonSafe(`/api/questions/${enrichedTask.questionId}`);
+          setQuestion(q || null);
         } catch {
           setQuestion(null);
         }
@@ -139,68 +209,60 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
         setQuestion(null);
       }
     } catch (e) {
-      console.error("Failed to load next task", e);
+      console.error("Failed to load next task:", e);
     } finally {
       setLoadingTask(false);
     }
   }
 
-  // Helper: find item mapping for given question id inside taskModel
-  function findItemMappingForQuestion(qid) {
-    if (!taskModel || !taskModel.itemMappings) return null;
-    return taskModel.itemMappings.find((m) => m.itemId === qid) || null;
-  }
-
-  // Helper: find rubric levels for observationId by searching evidenceModels
+  // ----- helper: find rubric levels for an observationId using evidenceModels -----
   function getRubricLevelsForObservation(obsId) {
     for (const em of evidenceModels || []) {
       const obs = (em.observations || []).find((o) => o.id === obsId);
-      if (obs && obs.rubric && Array.isArray(obs.rubric.levels)) return obs.rubric.levels;
+      if (obs && obs.rubric && Array.isArray(obs.rubric.levels)) {
+        return obs.rubric.levels;
+      }
     }
     return null;
   }
 
-  // Submission handler
   async function handleSubmit(e) {
     e.preventDefault();
     if (!currentTaskId) return;
     setSubmitting(true);
 
-    // Build submission fields
     const payload = {
       taskId: currentTaskId,
     };
 
     if (question?.id) payload.questionId = question.id;
 
-    // Auto-map item → observation/evidence if mapping exists
-    const mapping = question?.id ? findItemMappingForQuestion(question.id) : null;
+    // auto-map item → observation/evidence if mapping exists
+    const mapping = findItemMapping(taskModel, question?.id);
     if (mapping) {
       if (mapping.observationId) payload.observationId = mapping.observationId;
       if (mapping.evidenceId) payload.evidenceId = mapping.evidenceId;
     }
 
-    // Fill raw answers / scoring depending on type
+    // Fill answers depending on type
     if (question?.type === "mcq") {
       payload.rawAnswer = selectedOptionId || null;
-      // simple binary scoring
-      const scored = selectedOptionId && question.correctOptionId === selectedOptionId ? 1 : 0;
+      const scored =
+        selectedOptionId && question.correctOptionId === selectedOptionId ? 1 : 0;
       payload.scoredValue = scored;
     } else if (question?.type === "rubric") {
-      // rubricLevel preferred (string)
       payload.rubricLevel = selectedRubricLevel || null;
       payload.rawAnswer = textAnswer || null;
       payload.scoredValue = selectedRubricLevel || null;
     } else if (["constructed", "open"].includes(question?.type)) {
       payload.rawAnswer = textAnswer || null;
-      // scoring left null for teacher later; backend may accept scoredValue
     } else {
-      // fallback: send whatever text user typed
+      // fallback
       payload.rawAnswer = textAnswer || (selectedOptionId || null);
     }
 
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/submit`, {
+      const res = await fetch(`/api/sessions/${sessionIdRef.current}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -214,12 +276,28 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
       const updatedSession = await res.json();
       setSession(updatedSession);
 
-      // Clear UI inputs for next task
+      // enrich tasks for updated session
+      if (updatedSession?.taskIds?.length) {
+        const enrichedTasks = await Promise.all(
+          updatedSession.taskIds.map(async (tid) => {
+            try {
+              const t = await fetchJsonSafe(`/api/tasks/${tid}`);
+              return await enrichTaskWithModel(t);
+            } catch {
+              return { id: tid };
+            }
+          })
+        );
+        updatedSession.tasks = enrichedTasks;
+      }
+      setSession(updatedSession);
+
+      // clear inputs before next task
       setSelectedOptionId(null);
       setTextAnswer("");
       setSelectedRubricLevel(null);
 
-      // Ask backend for next task
+      // load next task
       await loadNextTask();
     } catch (err) {
       console.error(err);
@@ -229,10 +307,13 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     }
   }
 
+  // ----- finish session -----
   async function handleFinish() {
     if (!confirm("Finish this session?")) return;
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/finish`, { method: "POST" });
+      const res = await fetch(`/api/sessions/${sessionIdRef.current}/finish`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error("Failed to finish session");
       const updated = await res.json();
       setSession(updated);
@@ -242,14 +323,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     } catch (e) {
       console.error(e);
       alert("Failed to finish session: " + e.message);
-      setFinishing(false); // unlock if failed
+      setFinishing(false);
     }
   }
 
   async function confirmFinish() {
-    setFinishing(true);  // lock button immediately
+    setFinishing(true);
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/finish`, { method: "POST" });
+      const res = await fetch(`/api/sessions/${sessionIdRef.current}/finish`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error("Failed to finish session");
       const updated = await res.json();
       setSession(updated);
@@ -258,45 +341,56 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     } catch (e) {
       console.error(e);
       alert("Failed to finish session: " + e.message);
-      setFinishing(false); // unlock only if failed
+      setFinishing(false);
     }
   }
-  
-    if (!sessionId) return <div className="p-6">Session id not provided in props or URL.</div>;
-    if (loading) return <div className="p-6">Loading session...</div>;
 
-    // Banner messages
-    let banner = null;
-    if (session?.status === "paused") {
-      banner = (
-        <div className="mb-4 p-3 rounded bg-orange-100 text-orange-800 border border-orange-300">
-          ⚠️ This session has been <strong>paused</strong> by your teacher. You cannot continue until it is resumed.
-        </div>
-      );
-    } else if (showResumedBanner) {
-      banner = (
-        <div className="mb-4 p-3 rounded bg-green-100 text-green-800 border border-green-300">
-          ✅ Session resumed — you may continue.
-        </div>
-      );
-    }
+  // ----- render banners -----
+  let banner = null;
+  if (session?.status === "paused") {
+    banner = (
+      <div className="mb-4 p-3 rounded bg-orange-100 text-orange-800 border border-orange-300">
+        ⚠️ This session has been <strong>paused</strong> by your teacher.
+      </div>
+    );
+  } else if (showResumedBanner) {
+    banner = (
+      <div className="mb-4 p-3 rounded bg-green-100 text-green-800 border border-green-300">
+        ✅ Session resumed — you may continue.
+      </div>
+    );
+  }
 
   const progressTotal = (session?.taskIds || []).length || 0;
   const progressDone = (session?.responses || []).length || 0;
+
+  if (!sessionId) return <div className="p-6">Session id not provided.</div>;
+  if (loading) return <div className="p-6">Loading session...</div>;
 
   return (
     <div className="p-6 space-y-4">
       {banner}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Session Player: {sessionId}</h2>
-        <div className="text-sm text-gray-600">Student: {session?.studentId || "(unassigned)"}</div>
+        <div className="text-sm text-gray-600">
+          Student: {session?.studentId || "(unassigned)"}
+        </div>
       </div>
 
-      {/* Progress */}
+      {/* Progress bar */}
       <div>
-        <div className="text-sm text-gray-700">Progress: {progressDone} / {progressTotal}</div>
+        <div className="text-sm text-gray-700">
+          Progress: {progressDone} / {progressTotal}
+        </div>
         <div className="w-full bg-gray-200 rounded h-3 mt-1">
-          <div className="h-3 rounded bg-blue-600" style={{ width: `${progressTotal ? (progressDone / progressTotal) * 100 : 0}%` }} />
+          <div
+            className="h-3 rounded bg-blue-600"
+            style={{
+              width: `${
+                progressTotal ? (progressDone / progressTotal) * 100 : 0
+              }%`,
+            }}
+          />
         </div>
       </div>
 
@@ -304,45 +398,51 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
         <div>Loading next task...</div>
       ) : noMoreTasks ? (
         <div className="p-4 border rounded bg-green-50">
-          <p className="font-medium">No more tasks available for this session.</p>
-          <p className="text-sm text-gray-600">You can finish the session or review responses.</p>
-          <div className="mt-3 flex items-center space-x-2">
+          <p className="font-medium">No more tasks available.</p>
+          <p className="text-sm text-gray-600">
+            You can finish the session or review responses.
+          </p>
+          <div className="mt-3 space-x-2">
             {session?.status !== "completed" && (
               <button
+                type="button"
                 onClick={() => setFinishModalOpen(true)}
                 disabled={session?.status === "paused" || finishing}
-                className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                className="px-3 py-1 bg-red-500 text-white rounded disabled:opacity-50"
               >
                 {finishing ? "Finishing..." : "Finish Session"}
               </button>
             )}
-            {session?.status === "completed" && (
-              <div className="flex items-center space-x-2">
-                <div className="px-3 py-1 bg-green-500 text-white rounded inline-block">
-                  ✅ Session Completed
-                </div>
-                <a
-                  href={`/api/reports/session/${sessionId}/learner-feedback`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3 py-1 bg-purple-600 text-white rounded"
-                >
-                  View My Report
-                </a>
-              </div>
-            )}
+            <a
+              href={`/api/reports/session/${sessionId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1 bg-indigo-600 text-white rounded"
+            >
+              Open Report (raw JSON)
+            </a>
           </div>
         </div>
       ) : task ? (
         <div className="p-4 border rounded bg-white">
           <div className="mb-3">
-            <strong>Task:</strong> <span className="text-sm text-gray-600">{task.id}</span>
+            <strong>Task:</strong>{" "}
+            <span className="text-sm text-gray-600">{task.id}</span>
           </div>
 
           {taskModel && (
             <div className="mb-3 text-sm text-gray-600">
-              <div><strong>Task Model:</strong> {taskModel.name || taskModel.id}</div>
-              <div><strong>Difficulty:</strong> {taskModel.difficulty || '-'}</div>
+              <div>
+                <strong>Competency:</strong>{" "}
+                {taskModel.competencyId || "(unknown)"}
+              </div>
+              <div>
+                <strong>Evidence:</strong> {taskModel.evidenceId || "(unknown)"}
+              </div>
+              <div>
+                <strong>Task Model:</strong>{" "}
+                {taskModel.name || taskModel.id || "(unnamed)"}
+              </div>
             </div>
           )}
 
@@ -357,8 +457,17 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
               {question.type === "mcq" && (
                 <div>
                   {(question.options || []).map((opt) => (
-                    <label key={opt.id} className="block p-2 border rounded my-1">
-                      <input type="radio" name="mcq" value={opt.id} checked={selectedOptionId === opt.id} onChange={() => setSelectedOptionId(opt.id)} />{' '}
+                    <label
+                      key={opt.id}
+                      className="block p-2 border rounded my-1"
+                    >
+                      <input
+                        type="radio"
+                        name="mcq"
+                        value={opt.id}
+                        checked={selectedOptionId === opt.id}
+                        onChange={() => setSelectedOptionId(opt.id)}
+                      />{" "}
                       <span className="ml-2">{opt.text}</span>
                     </label>
                   ))}
@@ -369,41 +478,61 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
               {question.type === "rubric" && (
                 <div>
                   <div className="text-sm text-gray-700">Rubric response</div>
-                  {/* try to find mapping to observation and show levels */}
                   {(() => {
-                    const mapping = findItemMappingForQuestion(question.id);
-                    const levels = mapping?.observationId ? getRubricLevelsForObservation(mapping.observationId) : null;
+                    const mapping = findItemMapping(taskModel, question.id);
+                    const levels = mapping?.observationId
+                      ? getRubricLevelsForObservation(mapping.observationId)
+                      : null;
                     if (levels) {
                       return (
-                        <select className="border p-2 rounded w-full" value={selectedRubricLevel || ""} onChange={(e) => setSelectedRubricLevel(e.target.value)}>
+                        <select
+                          className="border p-2 rounded w-full"
+                          value={selectedRubricLevel || ""}
+                          onChange={(e) => setSelectedRubricLevel(e.target.value)}
+                        >
                           <option value="">Select rubric level</option>
                           {levels.map((lvl, i) => (
-                            <option key={i} value={lvl}>{lvl}</option>
+                            <option key={i} value={lvl}>
+                              {lvl}
+                            </option>
                           ))}
                         </select>
                       );
                     }
-                    // fallback: free-text rubric level
                     return (
-                      <input className="border p-2 rounded w-full" placeholder="Enter rubric level or comment" value={textAnswer} onChange={(e) => setTextAnswer(e.target.value)} />
+                      <input
+                        className="border p-2 rounded w-full"
+                        placeholder="Enter rubric level or comment"
+                        value={textAnswer}
+                        onChange={(e) => setTextAnswer(e.target.value)}
+                      />
                     );
                   })()}
                 </div>
               )}
 
               {/* Constructed / open */}
-              {(["constructed", "open"].includes(question.type)) && (
+              {["constructed", "open"].includes(question.type) && (
                 <div>
                   <label className="block font-medium">Answer</label>
-                  <textarea rows={6} className="w-full border p-2 rounded" value={textAnswer} onChange={(e) => setTextAnswer(e.target.value)} />
+                  <textarea
+                    rows={6}
+                    className="w-full border p-2 rounded"
+                    value={textAnswer}
+                    onChange={(e) => setTextAnswer(e.target.value)}
+                  />
                 </div>
               )}
 
-              {/* Fallback for questions without type/item */}
+              {/* Fallback */}
               {!question.type && (
                 <div>
                   <label className="block font-medium">Answer</label>
-                  <input className="border p-2 rounded w-full" value={textAnswer} onChange={(e) => setTextAnswer(e.target.value)} />
+                  <input
+                    className="border p-2 rounded w-full"
+                    value={textAnswer}
+                    onChange={(e) => setTextAnswer(e.target.value)}
+                  />
                 </div>
               )}
 
@@ -415,7 +544,6 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                 >
                   Submit Answer
                 </button>
-
                 <button
                   type="button"
                   onClick={loadNextTask}
@@ -424,7 +552,6 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                 >
                   Skip
                 </button>
-
                 {session?.status !== "completed" && (
                   <button
                     type="button"
@@ -435,28 +562,17 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                     {finishing ? "Finishing..." : "Finish Session"}
                   </button>
                 )}
-                
                 {session?.status === "completed" && (
                   <div className="px-3 py-1 bg-green-500 text-white rounded inline-block">
                     ✅ Session Completed
                   </div>
                 )}
-                
-                {session?.status === "completed" && (
-                  <a
-                    href={`/api/reports/session/${sessionId}/learner-feedback`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1 bg-purple-600 text-white rounded ml-2"
-                  >
-                    View My Report
-                  </a>
-                )}
-                
               </div>
             </form>
           ) : (
-            <div className="text-sm text-gray-600">No linked question for this task. You may capture observation/evidence manually.</div>
+            <div className="text-sm text-gray-600">
+              No linked question for this task. You may capture evidence manually.
+            </div>
           )}
         </div>
       ) : (
@@ -468,18 +584,36 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
         <h4 className="font-semibold">Responses</h4>
         {session?.responses?.length ? (
           <ul className="list-disc ml-5 text-sm">
-            {session.responses.map((r, i) => (
-              <li key={i}>
-                <div><strong>Task:</strong> {r.taskId} <span className="text-gray-500">at {new Date(r.timestamp).toLocaleString()}</span></div>
-                <div className="text-gray-700">Answer: {r.rawAnswer || r.rubricLevel || r.scoredValue || "(none)"}</div>
-              </li>
-            ))}
+            {session.responses.map((r, i) => {
+              // try to find the enriched task for this response
+              // and get competency/evidence from taskModel if available
+              const t = session.tasks?.find((x) => x.id === r.taskId) || null;
+              const competency = t?.taskModel?.competencyId || "?";
+              const evidence = t?.taskModel?.evidenceId || "?";
+
+              return (
+                <li key={i}>
+                  <div>
+                    <strong>Task:</strong> {r.taskId}{" "}
+                    <span className="text-gray-500">
+                      at {new Date(r.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-gray-700">
+                    Answer: {r.rawAnswer || r.rubricLevel || r.scoredValue || "(none)"}
+                  </div>
+                  <div className="text-gray-500 text-xs">
+                    [C: {competency}, E: {evidence}]
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="text-sm text-gray-500">No responses yet.</p>
         )}
       </div>
-      
+
       {/* Finish confirmation modal */}
       <Modal
         isOpen={finishModalOpen}

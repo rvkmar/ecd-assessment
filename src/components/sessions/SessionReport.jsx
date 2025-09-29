@@ -124,7 +124,10 @@ export default function SessionReport({ sessionId, onClose }) {
             <ul className="list-disc ml-5 text-sm">
               {teacherReport.responses?.map((r, i) => (
                 <li key={i}>
-                  Task {r.taskId}: {r.rawAnswer || r.rubricLevel || r.scoredValue || "-"}
+                  Task {r.taskId}: {r.rawAnswer || r.rubricLevel || r.scoredValue || "-"}{" "}
+                  <span className="text-gray-500 text-xs">
+                    [C: {r.competencyId || "?"}, E: {r.evidenceId || "?"}]
+                  </span>
                 </li>
               ))}
             </ul>

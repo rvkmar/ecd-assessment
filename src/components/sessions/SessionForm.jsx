@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 // Props:
 // - model: session object (may be partial for new)
 // - students: array of students [{id, name}]
-// - tasks: array of tasks [{id, taskModelId, questionId, ...}]
+// - tasks: array of tasks [{id, taskModelId, questionId, taskModel?: {competencyId, evidenceId}, ...}]
 // - onSave(sessionPayload)
 // - onCancel()
 // - notify(message)
@@ -45,7 +45,6 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
 
   const handleStrategyChange = (val) => {
     setSelectionStrategy(val);
-    // Pre-fill sensible defaults based on strategy
     if (val === "fixed") {
       setNextTaskPolicyText("{}");
     } else if (val === "IRT") {
@@ -88,11 +87,14 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
     }
   };
 
+  // 🔑 Enhanced task label: Question + Competency + Evidence + Model
   const getTaskLabel = (t) => {
-    const labelParts = [];
-    if (t.taskModelId) labelParts.push(t.taskModelId);
-    if (t.questionId) labelParts.push(t.questionId);
-    return labelParts.join(" • ") || t.id;
+    const parts = [];
+    if (t.questionId) parts.push(`Q: ${t.questionId}`);
+    if (t.taskModel?.competencyId) parts.push(`C: ${t.taskModel.competencyId}`);
+    if (t.taskModel?.evidenceId) parts.push(`E: ${t.taskModel.evidenceId}`);
+    if (t.taskModelId) parts.push(`M: ${t.taskModelId}`);
+    return parts.join(" • ") || t.id;
   };
 
   return (
@@ -115,8 +117,12 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
             <div className="max-h-48 overflow-auto border rounded p-2 mt-2 bg-white">
               {tasks.map((t) => (
                 <label key={t.id} className="block text-sm">
-                  <input type="checkbox" checked={selectedTasks.includes(t.id)} onChange={() => toggleTask(t.id)} />{' '}
-                  {getTaskLabel(t)} <span className="text-gray-400">({t.id})</span>
+                  <input type="checkbox" checked={selectedTasks.includes(t.id)} onChange={() => toggleTask(t.id)} />{" "}
+                  <span className="font-medium">{t.questionId || "No Question"}</span>{" "}
+                  <span className="text-gray-500 ml-1">
+                    [{t.taskModel?.competencyId || "?"} / {t.taskModel?.evidenceId || "?"}]
+                  </span>
+                  <span className="text-gray-400 ml-1">({t.id})</span>
                 </label>
               ))}
               {tasks.length === 0 && <p className="text-gray-500 text-sm">No tasks available</p>}
@@ -130,10 +136,12 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
                 const t = tasks.find((x) => x.id === tid) || { id: tid };
                 return (
                   <div key={tid} className="flex items-center justify-between text-sm py-1">
-                    <div className="truncate">{getTaskLabel(t)} <span className="text-gray-400">({tid})</span></div>
+                    <div className="truncate">
+                      {getTaskLabel(t)} <span className="text-gray-400">({tid})</span>
+                    </div>
                     <div className="flex items-center space-x-1">
-                      <button type="button" onClick={() => moveTask(idx, 'up')} title="Move up" className="px-2 py-0.5 border rounded">↑</button>
-                      <button type="button" onClick={() => moveTask(idx, 'down')} title="Move down" className="px-2 py-0.5 border rounded">↓</button>
+                      <button type="button" onClick={() => moveTask(idx, "up")} title="Move up" className="px-2 py-0.5 border rounded">↑</button>
+                      <button type="button" onClick={() => moveTask(idx, "down")} title="Move down" className="px-2 py-0.5 border rounded">↓</button>
                       <button type="button" onClick={() => toggleTask(tid)} title="Remove" className="px-2 py-0.5 border rounded text-red-600">✕</button>
                     </div>
                   </div>

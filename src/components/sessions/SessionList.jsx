@@ -22,6 +22,7 @@ export default function SessionList({
   onViewReport = () => {},
 }) {
   const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
+  const [expanded, setExpanded] = useState(null); // track which session preview is expanded
 
   const getStudentName = (id) => {
     const s = (students || []).find((st) => st.id === id);
@@ -38,6 +39,46 @@ export default function SessionList({
     closeDelete();
   };
 
+  const renderTaskPreview = (session) => {
+    const tasks = session.tasks || []; // if backend enriched
+    const ids = session.taskIds || [];
+    if (!ids.length) return <p className="text-xs text-gray-400">No tasks</p>;
+
+    const preview = ids.slice(0, 3).map((tid) => {
+      const t = tasks.find((x) => x.id === tid) || { id: tid };
+      const q = t.questionId ? `Q: ${t.questionId}` : "No Q";
+      const c = t.taskModel?.competencyId || "?";
+      const e = t.taskModel?.evidenceId || "?";
+      return (
+        <li key={tid} className="truncate">
+          {q} <span className="text-gray-500">[C: {c}, E: {e}]</span>
+        </li>
+      );
+    });
+
+    return (
+      <div className="mt-1 text-xs text-gray-600">
+        {expanded === session.id ? (
+          <ul className="list-disc ml-5 space-y-0.5">{preview}</ul>
+        ) : (
+          <ul className="list-disc ml-5 space-y-0.5">{preview}</ul>
+        )}
+        {ids.length > 3 && (
+          <button
+            onClick={() =>
+              setExpanded(expanded === session.id ? null : session.id)
+            }
+            className="text-blue-600 hover:underline text-xs mt-1"
+          >
+            {expanded === session.id
+              ? "Show less"
+              : `+${ids.length - 3} more`}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   if (!sessions || sessions.length === 0) {
     return <p className="text-gray-500">No sessions created yet.</p>;
   }
@@ -45,7 +86,10 @@ export default function SessionList({
   return (
     <div className="space-y-4">
       {sessions.map((s) => (
-        <div key={s.id} className="p-4 border rounded-md bg-white shadow-sm flex justify-between items-start">
+        <div
+          key={s.id}
+          className="p-4 border rounded-md bg-white shadow-sm flex justify-between items-start"
+        >
           <div className="w-3/4">
             <div className="flex items-baseline justify-between">
               <h3 className="text-lg font-semibold">{s.id}</h3>
@@ -74,13 +118,19 @@ export default function SessionList({
                 Strategy: <strong>{s.selectionStrategy || "fixed"}</strong>
               </div>
               <div>
-                Tasks: <strong>{(s.taskIds || []).length}</strong> &nbsp;|&nbsp; Responses: <strong>{(s.responses || []).length}</strong>
+                Tasks: <strong>{(s.taskIds || []).length}</strong> &nbsp;|&nbsp;
+                Responses: <strong>{(s.responses || []).length}</strong>
               </div>
+              {renderTaskPreview(s)}
             </div>
 
             <div className="text-xs text-gray-400 mt-2">
-              {s.startedAt && <div>Started: {new Date(s.startedAt).toLocaleString()}</div>}
-              {s.updatedAt && <div>Last updated: {new Date(s.updatedAt).toLocaleString()}</div>}
+              {s.startedAt && (
+                <div>Started: {new Date(s.startedAt).toLocaleString()}</div>
+              )}
+              {s.updatedAt && (
+                <div>Last updated: {new Date(s.updatedAt).toLocaleString()}</div>
+              )}
             </div>
           </div>
 
@@ -120,7 +170,7 @@ export default function SessionList({
               </button>
             )}
 
-            {/* Always allow delete (admin/cleanup) */}
+            {/* Always allow delete */}
             <button
               onClick={() => openDelete(s.id)}
               className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
