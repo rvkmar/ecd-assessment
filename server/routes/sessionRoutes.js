@@ -42,6 +42,7 @@ router.post("/", (req, res) => {
     nextTaskPolicy: nextTaskPolicy || {},
 
     // Lifecycle
+    status: "in-progress",
     isCompleted: false,
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -65,6 +66,26 @@ router.post("/", (req, res) => {
 router.get("/", (req, res) => {
   const db = loadDB();
   res.json(db.sessions || []);
+});
+
+// ------------------------------
+// GET /api/sessions/active
+// ------------------------------
+router.get("/active", (req, res) => {
+  const db = loadDB();
+  if (!db.sessions) db.sessions = [];
+  const active = db.sessions.filter((s) => s.status !== "archived");
+  res.json(active);
+});
+
+// ------------------------------
+// GET /api/sessions/archived
+// ------------------------------
+router.get("/archived", (req, res) => {
+  const db = loadDB();
+  if (!db.sessions) db.sessions = [];
+  const archived = db.sessions.filter((s) => s.status === "archived");
+  res.json(archived);
 });
 
 // ------------------------------
@@ -360,6 +381,38 @@ router.post("/:id/finish", (req, res) => {
 
   saveDB(db);
   res.json(db.sessions[idx]);
+});
+
+// ------------------------------
+// POST /api/sessions/:id/archive
+// ------------------------------
+router.post("/:id/archive", (req, res) => {
+  const { id } = req.params;
+  const db = loadDB();
+  if (!db.sessions) db.sessions = [];
+  const idx = db.sessions.findIndex((s) => s.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Session not found" });
+
+  db.sessions[idx].status = "archived";
+  db.sessions[idx].updatedAt = new Date().toISOString();
+  saveDB(db);
+  res.json(db.sessions[idx]);
+});
+
+// ------------------------------
+// DELETE /api/sessions/:id
+// ------------------------------
+// For admin use only
+router.delete("/:id", (req, res) => {
+  const { id } = req.params;
+  const db = loadDB();
+  if (!db.sessions) db.sessions = [];
+  const idx = db.sessions.findIndex((s) => s.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Session not found" });
+
+  const deleted = db.sessions.splice(idx, 1)[0];
+  saveDB(db);
+  res.json({ success: true, deleted });
 });
 
 export default router;

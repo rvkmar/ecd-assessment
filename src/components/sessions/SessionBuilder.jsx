@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import SessionList from "./SessionList";
 import SessionForm from "./SessionForm";
 import SessionReport from "./SessionReport";
+import NavBar from "../ui/NavBar";
 
 // SessionBuilder.jsx
 // Top-level manager for Sessions
@@ -14,48 +15,79 @@ export default function SessionBuilder({ notify }) {
   const [reportSessionId, setReportSessionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [sessionTab, setSessionTab] = useState("active"); // "active" | "archived"
+  const [activeCount, setActiveCount] = useState(0);
+  const [archivedCount, setArchivedCount] = useState(0);
+
 
   // Load sessions + supporting collections
   useEffect(() => {
     loadAll();
   }, []);
 
-  const loadAll = async () => {
+  // const loadAll = async () => {
+  //   setLoading(true);
+  //   try {
+  //     const [sessData, stuData, taskData] = await Promise.all([
+  //       fetch("/api/sessions").then((r) => r.json()),
+  //       fetch("/api/students").then((r) => r.json()),
+  //       fetch("/api/tasks").then((r) => r.json()),
+  //     ]);
+
+  //     // enrich tasks with taskModel info
+  //     const enrichedTasks = await Promise.all(
+  //       (taskData || []).map(async (t) => {
+  //         if (t.taskModelId) {
+  //           try {
+  //             const tm = await fetch(`/api/taskModels/${t.taskModelId}`).then(
+  //               (r) => r.json()
+  //             );
+  //             return { ...t, taskModel: tm };
+  //           } catch {
+  //             return t;
+  //           }
+  //         }
+  //         return t;
+  //       })
+  //     );
+
+  //     setSessions(sessData || []);
+  //     setStudents(stuData || []);
+  //     setTasks(enrichedTasks);
+  //   } catch (err) {
+  //     console.error("Failed to load sessions/students/tasks", err);
+  //     notify?.("❌ Failed to load sessions or supporting data");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+    const loadAll = () => {
     setLoading(true);
-    try {
-      const [sessData, stuData, taskData] = await Promise.all([
-        fetch("/api/sessions").then((r) => r.json()),
-        fetch("/api/students").then((r) => r.json()),
-        fetch("/api/tasks").then((r) => r.json()),
-      ]);
 
-      // enrich tasks with taskModel info
-      const enrichedTasks = await Promise.all(
-        (taskData || []).map(async (t) => {
-          if (t.taskModelId) {
-            try {
-              const tm = await fetch(`/api/taskModels/${t.taskModelId}`).then(
-                (r) => r.json()
-              );
-              return { ...t, taskModel: tm };
-            } catch {
-              return t;
-            }
-          }
-          return t;
-        })
-      );
-
-      setSessions(sessData || []);
-      setStudents(stuData || []);
-      setTasks(enrichedTasks);
-    } catch (err) {
-      console.error("Failed to load sessions/students/tasks", err);
-      notify?.("❌ Failed to load sessions or supporting data");
-    } finally {
-      setLoading(false);
-    }
+    const sessionsUrl =
+      sessionTab === "archived" ? "/api/sessions/archived" : "/api/sessions/active";
+    Promise.all([
+      fetch("/api/sessions/active").then((r) => r.json()),    // for counts
+      fetch("/api/sessions/archived").then((r) => r.json()),  // for counts
+      fetch(sessionsUrl).then((r) => r.json()),               // actual list
+      fetch("/api/students").then((r) => r.json()),
+      fetch("/api/tasks").then((r) => r.json()),
+    ])
+      .then(([activeData, archivedData, currentData, stuData, taskData]) => {
+        setActiveCount((activeData || []).length);
+        setArchivedCount((archivedData || []).length);
+        setSessions(currentData || []);   // ✅ show active or archived depending on tab
+        setStudents(stuData || []);
+        setTasks(taskData || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load sessions/students/tasks", err);
+        notify?.("Failed to load sessions or supporting data");
+      })
+      .finally(() => setLoading(false));
   };
+
 
   // Create session only (no PUT/update)
   const handleSave = async (sessionPayload) => {
@@ -127,6 +159,20 @@ export default function SessionBuilder({ notify }) {
     }
   };
 
+    const handleArchive = async (id) => {
+    try {
+      const res = await fetch(`/api/sessions/${id}/archive`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to archive session");
+      const updated = await res.json();
+      notify?.("Session archived.");
+      // Reload sessions so it disappears from Active and shows in Archived
+      loadAll();
+    } catch (e) {
+      console.error(e);
+      notify?.("❌ Failed to archive session");
+    }
+  };
+
   const handlePlay = (session) => {
     window.location.href = `/sessions/${session.id}/player`;
   };
@@ -161,6 +207,16 @@ export default function SessionBuilder({ notify }) {
         </div>
       </div>
 
+      <NavBar
+        tabs={[
+          { id: "active", label: `Active Sessions (${activeCount})` },
+          { id: "archived", label: `Archived Sessions (${archivedCount})` },
+        ]}
+        active={sessionTab}
+        onSelect={setSessionTab}
+        color="indigo"
+      />
+
       {/* Session list */}
       <SessionList
         sessions={sessions}
@@ -168,7 +224,8 @@ export default function SessionBuilder({ notify }) {
         onPlay={handlePlay}
         onPause={handlePause}
         onResume={handleResume}
-        onDelete={handleDelete}
+        // onDelete={handleDelete}
+        onArchive={handleArchive}   // ✅ instead of onDelete
         onViewReport={handleViewReport}
       />
 

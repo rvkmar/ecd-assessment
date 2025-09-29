@@ -21,13 +21,15 @@ router.get("/:id", (req, res) => {
 
 // POST /api/students
 router.post("/", (req, res) => {
-  const { name } = req.body;
+  const { name, classId, districtId } = req.body;
   if (!name) return res.status(400).json({ error: "Name required" });
 
   const db = loadDB();
   const newStudent = {
     id: `stu${Date.now()}`,
     name,
+    classId: classId || null,
+    districtId: districtId || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -35,12 +37,13 @@ router.post("/", (req, res) => {
   const { valid, errors } = validateEntity("students", newStudent, db);
   if (!valid) return res.status(400).json({ error: "Schema validation failed", details: errors });
 
-  if (!db.students) db.students = [];
+  db.students = db.students || [];
   db.students.push(newStudent);
   saveDB(db);
 
   res.status(201).json(newStudent);
 });
+
 
 // DELETE /api/students/:id
 router.delete("/:id", (req, res) => {

@@ -82,8 +82,11 @@ function DistrictDashboard({ notify }) {
 }
 
 // 🔹 Teacher dashboard
+import ClassReport from "./components/reports/ClassReport";
+
 function TeacherDashboard({ notify }) {
   const [tab, setTab] = useState("questions");
+  const [showClassReport, setShowClassReport] = useState(false);
 
   const tabs = [
     { id: "questions", label: "Question Bank" },
@@ -98,7 +101,21 @@ function TeacherDashboard({ notify }) {
 
       {tab === "questions" && <QuestionBank notify={notify} />}
       {tab === "tasks" && <TasksManager notify={notify} />}
-      {tab === "sessions" && <SessionBuilder notify={notify} />}
+      {tab === "sessions" && (
+        <>
+          <SessionBuilder notify={notify} />
+          <button
+            onClick={() => setShowClassReport(true)}
+            className="mt-4 px-3 py-1 bg-indigo-600 text-white rounded"
+          >
+            View Class Report
+          </button>
+        </>
+      )}
+
+      {showClassReport && (
+        <ClassReport classId="class8" onClose={() => setShowClassReport(false)} />
+      )}
     </div>
   );
 }
@@ -109,7 +126,7 @@ function StudentDashboard({ notify }) {
   const [sessions, setSessions] = useState([]);
 
   React.useEffect(() => {
-    fetch("/api/sessions")
+    fetch("/api/sessions/active")
       .then((r) => r.json())
       .then((data) => setSessions(data || []))
       .catch(() => notify("❌ Failed to load sessions"));

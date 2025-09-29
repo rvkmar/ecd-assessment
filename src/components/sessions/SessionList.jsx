@@ -18,7 +18,8 @@ export default function SessionList({
   onPlay = () => {},
   onPause = () => {},
   onResume = () => {},
-  onDelete = () => {},
+  onDelete = () => { },
+  onArchive = () => {}, 
   onViewReport = () => {},
 }) {
   const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
@@ -99,6 +100,8 @@ export default function SessionList({
                     ? "bg-green-100 text-green-800"
                     : s.status === "paused"
                     ? "bg-orange-100 text-orange-800"
+                    : s.status === "archived"
+                    ? "bg-gray-300 text-gray-700"
                     : "bg-yellow-100 text-yellow-800"
                 }`}
               >
@@ -106,6 +109,8 @@ export default function SessionList({
                   ? "Completed"
                   : s.status === "paused"
                   ? "Paused"
+                  : s.status === "archived"
+                  ? "Archived"
                   : "In progress"}
               </span>
             </div>
@@ -170,13 +175,24 @@ export default function SessionList({
               </button>
             )}
 
-            {/* Always allow delete */}
+            {/* Always allow archive */}
+            {s.status !== "archived" && (
+              <button
+                onClick={() => onArchive(s.id)}
+                className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700"
+              >
+                Archive
+              </button>
+            )}
+
+            {/* Always allow delete
             <button
               onClick={() => openDelete(s.id)}
               className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
             >
               Delete
-            </button>
+            </button> */}
+
           </div>
         </div>
       ))}
