@@ -9,11 +9,22 @@ services:
     environment:
       - NODE_ENV=production
       - ECD_DB_FILE=/data/db.json
+    #   - R_BACKEND_URL=http://r-backend:4000
+    # depends_on:
+    #   - r-backend
     volumes:
       - ecd_data:/data
     expose:
       - "3000"
     restart: always
+
+  # r-backend:
+  #   image: rvkmar/r-backend:latest 
+  #   container_name: r-backend
+  #   command: Rscript /home/app/start.R
+  #   ports:
+  #     - "4000:4000"
+  #   restart: always
 
   nginx:
     build:
@@ -21,8 +32,7 @@ services:
       dockerfile: Dockerfile.nginx
     container_name: ecd-nginx
     ports:
-      - "6000:80"  # Original port mapping in LightSail
-      # - "8081:80" # localhost:8081 to container's port 80
+      - "6000:80"
     depends_on:
       - node
     restart: always
