@@ -143,6 +143,24 @@ export const schema = {
     startedAt: 'date',
     updatedAt: 'date',
   },
+
+    policies: {
+    type: "object",
+    required: ["id", "name", "type", "createdAt", "updatedAt"],
+    properties: {
+      id: { type: "string", pattern: "^p[0-9]+$" },
+      name: { type: "string", minLength: 1 },
+      description: { type: "string" },
+      type: {
+        type: "string",
+        enum: ["fixed", "IRT", "BayesianNetwork"], // extendable if needed
+      },
+      config: { type: "object" }, // e.g. { maxEntropy: true }
+      createdAt: { type: "string", format: "date-time" },
+      updatedAt: { type: "string", format: "date-time" },
+    },
+    additionalProperties: false,
+  },
 };
 
 // ------------------------------

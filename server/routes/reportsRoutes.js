@@ -7,7 +7,6 @@ const router = express.Router();
 // ------------------------------
 // GET /api/reports/session/:id
 // ------------------------------
-// Summarize one session: constructs + captured evidence/observations
 router.get("/session/:id", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
@@ -15,10 +14,30 @@ router.get("/session/:id", (req, res) => {
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   const student = db.students?.find(stu => stu.id === session.studentId);
+
+  // 🔹 Lookup policy info
+  const policies = db.policies || [];
+  let policyDetails = null;
+
+  if (session.nextTaskPolicy?.policyId) {
+    policyDetails = policies.find(p => p.id === session.nextTaskPolicy.policyId);
+  } else {
+    // fallback: match by type (selectionStrategy)
+    policyDetails = policies.find(p => p.type === session.selectionStrategy);
+  }
+
   const report = {
     sessionId: id,
     student: student ? { id: student.id, name: student.name } : null,
     selectionStrategy: session.selectionStrategy,
+    policy: policyDetails
+      ? {
+          id: policyDetails.id,
+          name: policyDetails.name,
+          description: policyDetails.description,
+          type: policyDetails.type,
+        }
+      : null,
     responses: session.responses || [],
     captured: [], // new: evidence & observations from tasks
     constructs: [],
@@ -67,6 +86,8 @@ router.get("/session/:id", (req, res) => {
 
   res.json(report);
 });
+
+
 
 // ------------------------------
 // GET /api/reports/session/:id/feedback
@@ -127,8 +148,25 @@ router.get("/session/:id/learner-feedback", (req, res) => {
   const session = db.sessions.find(s => s.id === id);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
+  // 🔹 Lookup policy info
+  const policies = db.policies || [];
+  let policyDetails = null;
+
+  if (session.nextTaskPolicy?.policyId) {
+    policyDetails = policies.find(p => p.id === session.nextTaskPolicy.policyId);
+  } else {
+    policyDetails = policies.find(p => p.type === session.selectionStrategy);
+  }
+
   const feedback = {
     sessionId: id,
+    policy: policyDetails
+      ? {
+          name: policyDetails.name,
+          type: policyDetails.type,
+          description: policyDetails.description,
+        }
+      : { type: session.selectionStrategy }, // fallback only
     summary: {},
     strengths: [],
     focusAreas: [],
@@ -171,35 +209,55 @@ router.get("/session/:id/learner-feedback", (req, res) => {
 });
 
 
+
 // ------------------------------
 // GET /api/reports/session/:id/teacher-report
 // ------------------------------
 router.get("/session/:id/teacher-report", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
-  const session = db.sessions.find((s) => s.id === id);
+  const session = db.sessions.find(s => s.id === id);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   const student = db.students?.find(stu => stu.id === session.studentId);
 
-  // 🔹 Pre-index collections for O(1) lookup
+  // 🔹 Lookup policy info
+  const policies = db.policies || [];
+  let policyDetails = null;
+
+  if (session.nextTaskPolicy?.policyId) {
+    policyDetails = policies.find(p => p.id === session.nextTaskPolicy.policyId);
+  } else {
+    policyDetails = policies.find(p => p.type === session.selectionStrategy);
+  }
+
+  // 🔹 Pre-index collections
   const taskMap = Object.fromEntries((db.tasks || []).map((t) => [t.id, t]));
   const taskModelMap = Object.fromEntries((db.taskModels || []).map((tm) => [tm.id, tm]));
-  // const evidenceModelMap = Object.fromEntries((db.evidenceModels || []).map((em) => [em.id, em]));
   const evidenceModelMap = {};
-    for (const em of db.evidenceModels || []) {
-      const obsMap = Object.fromEntries((em.observations || []).map((o) => [o.id, o]));
-      const constructMap = Object.fromEntries((em.constructs || []).map((c) => [c.id, c]));
-      evidenceModelMap[em.id] = { ...em, _obsMap: obsMap, _constructMap: constructMap };
-    }
+  for (const em of db.evidenceModels || []) {
+    const obsMap = Object.fromEntries((em.observations || []).map((o) => [o.id, o]));
+    const constructMap = Object.fromEntries((em.constructs || []).map((c) => [c.id, c]));
+    evidenceModelMap[em.id] = { ...em, _obsMap: obsMap, _constructMap: constructMap };
+  }
 
   const report = {
     sessionId: id,
     studentId: session.studentId,
     studentName: student ? student.name : null,
-    strategy: session.selectionStrategy,
+
+    // 🔹 Include policy info
+    selectionStrategy: session.selectionStrategy,
+    policy: policyDetails
+      ? {
+          id: policyDetails.id,
+          name: policyDetails.name,
+          description: policyDetails.description,
+          type: policyDetails.type,
+        }
+      : null,
+
     modelSummary: {},
-    // 
     responses: (session.responses || []).map((r) => {
       const task = taskMap[r.taskId];
       const tm = task ? taskModelMap[task.taskModelId] : null;
@@ -209,35 +267,34 @@ router.get("/session/:id/teacher-report", (req, res) => {
 
       if (tm) {
         for (const emId of tm.evidenceModelIds || []) {
-           const em = evidenceModelMap[emId];
-           if (!em) continue;
- 
-           if (r.observationId) {
-             const obs = em._obsMap[r.observationId];
-             if (obs) {
-               const construct = em._constructMap[obs.constructId];
-               if (construct) {
-                 competencyId = construct.competencyId || competencyId;
-                 evidenceId = construct.evidenceId || evidenceId;
-               }
-             }
-           }
- 
-           if (!competencyId && em.constructs.length > 0) {
-             competencyId = em.constructs[0].competencyId || competencyId;
-             evidenceId = em.constructs[0].evidenceId || evidenceId;
-           }
-         }
-       }
- 
-       return {
-         ...r,
-         taskModelId: task?.taskModelId || null,
-         competencyId,
-         evidenceId,
-       };
-     }),
+          const em = evidenceModelMap[emId];
+          if (!em) continue;
 
+          if (r.observationId) {
+            const obs = em._obsMap[r.observationId];
+            if (obs) {
+              const construct = em._constructMap[obs.constructId];
+              if (construct) {
+                competencyId = construct.competencyId || competencyId;
+                evidenceId = construct.evidenceId || evidenceId;
+              }
+            }
+          }
+
+          if (!competencyId && em.constructs.length > 0) {
+            competencyId = em.constructs[0].competencyId || competencyId;
+            evidenceId = em.constructs[0].evidenceId || evidenceId;
+          }
+        }
+      }
+
+      return {
+        ...r,
+        taskModelId: task?.taskModelId || null,
+        competencyId,
+        evidenceId,
+      };
+    }),
     recommendations: {
       groupLevel: [],
       individualLevel: []
@@ -247,7 +304,6 @@ router.get("/session/:id/teacher-report", (req, res) => {
   // 🔹 IRT summary
   if (session.selectionStrategy === "IRT" && session.studentModel?.irtTheta !== undefined) {
     const theta = session.studentModel.irtTheta;
-    // simple stderr placeholder: 1 / sqrt(N)
     const stderr = session.responses.length > 0 ? (1 / Math.sqrt(session.responses.length)) : null;
 
     report.modelSummary.IRT = {
@@ -256,7 +312,9 @@ router.get("/session/:id/teacher-report", (req, res) => {
       level: theta > 1 ? "Advanced" : theta > 0 ? "Proficient" : "Needs Support"
     };
 
-    report.recommendations.individualLevel.push("Assign items near current theta for higher measurement precision.");
+    report.recommendations.individualLevel.push(
+      "Assign items near current theta for higher measurement precision."
+    );
   }
 
   // 🔹 BN summary
@@ -264,11 +322,9 @@ router.get("/session/:id/teacher-report", (req, res) => {
     report.modelSummary.BayesianNetwork = {};
 
     for (const [node, prob] of Object.entries(session.studentModel.bnPosteriors)) {
-      // entropy helper
-      const entropy = (p) => {
-        if (p <= 0 || p >= 1) return 0;
-        return -p * Math.log2(p) - (1 - p) * Math.log2(1 - p);
-      };
+      const entropy = (p) => (p <= 0 || p >= 1)
+        ? 0
+        : -p * Math.log2(p) - (1 - p) * Math.log2(1 - p);
 
       report.modelSummary.BayesianNetwork[node] = {
         posterior: prob,
@@ -292,7 +348,6 @@ router.get("/session/:id/teacher-report", (req, res) => {
 // ------------------------------
 // GET /api/reports/teacher/class/:classId
 // ------------------------------
-// Aggregate reports for a class
 router.get("/teacher/class/:classId", (req, res) => {
   const { classId } = req.params;
   const db = loadDB();
@@ -311,8 +366,6 @@ router.get("/teacher/class/:classId", (req, res) => {
 
   // 🔹 Pre-index collections
   const taskMap = Object.fromEntries((db.tasks || []).map((t) => [t.id, t]));
-
-  // Build evidenceModel maps for competency/evidence lookup
   const evidenceModelMap = {};
   for (const em of db.evidenceModels || []) {
     const obsMap = Object.fromEntries((em.observations || []).map((o) => [o.id, o]));
@@ -320,11 +373,34 @@ router.get("/teacher/class/:classId", (req, res) => {
     evidenceModelMap[em.id] = { ...em, _obsMap: obsMap, _constructMap: constructMap };
   }
 
+  // 🔹 Policy lookup map
+  const policyMap = Object.fromEntries((db.policies || []).map((p) => [p.id, p]));
+
   const irtValues = [];
   const bnNodes = {};
-  const capturedSummary = []; // 🔹 from Version 1
+  const capturedSummary = [];
+  const policyUsage = [];
 
   for (const session of sessions) {
+    // Track policy details
+    let policyDetails = null;
+    if (session.nextTaskPolicy?.policyId && policyMap[session.nextTaskPolicy.policyId]) {
+      policyDetails = policyMap[session.nextTaskPolicy.policyId];
+    } else {
+      policyDetails = Object.values(policyMap).find(p => p.type === session.selectionStrategy);
+    }
+    if (policyDetails) {
+      policyUsage.push({
+        sessionId: session.id,
+        policy: {
+          id: policyDetails.id,
+          name: policyDetails.name,
+          description: policyDetails.description,
+          type: policyDetails.type,
+        }
+      });
+    }
+
     // collect IRT
     if (session.selectionStrategy === "IRT" && session.studentModel?.irtTheta !== undefined) {
       irtValues.push(session.studentModel.irtTheta);
@@ -338,7 +414,7 @@ router.get("/teacher/class/:classId", (req, res) => {
       }
     }
 
-    // collect captured evidence (🔹 from Version 1)
+    // collect captured evidence
     for (const tid of session.taskIds || []) {
       const task = taskMap[tid];
       if (task) {
@@ -382,7 +458,7 @@ router.get("/teacher/class/:classId", (req, res) => {
       count: irtValues.length,
       mean,
       stddev: Math.sqrt(variance),
-      distribution: { // 🔹 from Version 2
+      distribution: {
         below0: irtValues.filter(v => v < 0).length,
         between0and1: irtValues.filter(v => v >= 0 && v <= 1).length,
         above1: irtValues.filter(v => v > 1).length,
@@ -394,19 +470,16 @@ router.get("/teacher/class/:classId", (req, res) => {
   const bnSummary = {};
   for (const [node, probs] of Object.entries(bnNodes)) {
     const mean = probs.reduce((a, b) => a + b, 0) / probs.length;
-    const entropy = (p) => {
-      if (p <= 0 || p >= 1) return 0;
-      return -p * Math.log2(p) - (1 - p) * Math.log2(1 - p);
-    };
+    const entropy = (p) => (p <= 0 || p >= 1) ? 0 : -p * Math.log2(p) - (1 - p) * Math.log2(1 - p);
     bnSummary[node] = {
       count: probs.length,
       mean,
       meanEntropy: probs.map(p => entropy(p)).reduce((a, b) => a + b, 0) / probs.length,
-      level: mean > 0.7 ? "Strong" : mean > 0.4 ? "Developing" : "Needs Support" // 🔹 from Version 2
+      level: mean > 0.7 ? "Strong" : mean > 0.4 ? "Developing" : "Needs Support"
     };
   }
 
-  // 🔹 Recommendations (from Version 2)
+  // 🔹 Recommendations
   const recommendations = [];
   if (irtSummary) {
     if (irtSummary.mean < 0) {
@@ -428,10 +501,11 @@ router.get("/teacher/class/:classId", (req, res) => {
   res.json({
     classId,
     students: students.map(s => ({ id: s.id, name: s.name })),
+    policiesUsed: policyUsage, // 🔹 NEW
     summary: {
       IRT: irtSummary,
       BayesianNetwork: bnSummary,
-      captured: capturedSummary, // 🔹 from Version 1
+      captured: capturedSummary,
       competencyCoverage,
       evidenceCoverage,
     },
@@ -439,11 +513,10 @@ router.get("/teacher/class/:classId", (req, res) => {
   });
 });
 
+
 // ------------------------------
 // GET /api/reports/teacher/district/:districtId
 // ------------------------------
-// Aggregate reports for a district (class-level + district-level)
-// Includes captured evidence/observations per task
 router.get("/teacher/district/:districtId", (req, res) => {
   const { districtId } = req.params;
   const db = loadDB();
@@ -462,31 +535,32 @@ router.get("/teacher/district/:districtId", (req, res) => {
     classGroups[stu.classId].push(stu.id);
   }
 
-  // 🔹 Pre-index tasks for O(1) lookups
+  // 🔹 Pre-index
   const taskMap = Object.fromEntries((db.tasks || []).map((t) => [t.id, t]));
-
-  // 🔹 Pre-index evidenceModels for competency/evidence lookup
   const evidenceModelMap = {};
   for (const em of db.evidenceModels || []) {
     const obsMap = Object.fromEntries((em.observations || []).map((o) => [o.id, o]));
     const constructMap = Object.fromEntries((em.constructs || []).map((c) => [c.id, c]));
     evidenceModelMap[em.id] = { ...em, _obsMap: obsMap, _constructMap: constructMap };
   }
-  
+  const policyMap = Object.fromEntries((db.policies || []).map((p) => [p.id, p]));
+
   const districtReport = {
     districtId,
     classes: {},
+    policiesUsed: [], // 🔹 NEW
     districtSummary: {
       IRT: null,
       BayesianNetwork: {},
-      captured: [], // 🔹 aggregated from Version 1
+      captured: [],
     },
     recommendations: []
   };
 
   const allIrt = [];
   const bnNodes = {};
-  const capturedSummary = []; // 🔹 from Version 1
+  const capturedSummary = [];
+  const allPolicyUsage = [];
 
   // Process each class group
   for (const [classId, stuIds] of Object.entries(classGroups)) {
@@ -494,8 +568,38 @@ router.get("/teacher/district/:districtId", (req, res) => {
 
     const irtValues = [];
     const bnLocal = {};
+    const classPolicyUsage = [];
 
     for (const session of classSessions) {
+      // 🔹 Track policy
+      let policyDetails = null;
+      if (session.nextTaskPolicy?.policyId && policyMap[session.nextTaskPolicy.policyId]) {
+        policyDetails = policyMap[session.nextTaskPolicy.policyId];
+      } else {
+        policyDetails = Object.values(policyMap).find(p => p.type === session.selectionStrategy);
+      }
+      if (policyDetails) {
+        classPolicyUsage.push({
+          sessionId: session.id,
+          policy: {
+            id: policyDetails.id,
+            name: policyDetails.name,
+            description: policyDetails.description,
+            type: policyDetails.type,
+          }
+        });
+        allPolicyUsage.push({
+          classId,
+          sessionId: session.id,
+          policy: {
+            id: policyDetails.id,
+            name: policyDetails.name,
+            description: policyDetails.description,
+            type: policyDetails.type,
+          }
+        });
+      }
+
       // collect IRT
       if (session.selectionStrategy === "IRT" && session.studentModel?.irtTheta !== undefined) {
         irtValues.push(session.studentModel.irtTheta);
@@ -512,7 +616,7 @@ router.get("/teacher/district/:districtId", (req, res) => {
         }
       }
 
-      // collect captured evidence/observations 🔹 from Version 1
+      // collect captured evidence
       for (const tid of session.taskIds || []) {
         const task = taskMap[tid];
         if (task) {
@@ -533,11 +637,7 @@ router.get("/teacher/district/:districtId", (req, res) => {
     if (irtValues.length > 0) {
       const mean = irtValues.reduce((a, b) => a + b, 0) / irtValues.length;
       const variance = irtValues.reduce((a, b) => a + (b - mean) ** 2, 0) / irtValues.length;
-      irtSummary = {
-        count: irtValues.length,
-        mean,
-        stddev: Math.sqrt(variance),
-      };
+      irtSummary = { count: irtValues.length, mean, stddev: Math.sqrt(variance) };
     }
 
     // summarize BN for class
@@ -552,7 +652,11 @@ router.get("/teacher/district/:districtId", (req, res) => {
       };
     }
 
-    districtReport.classes[classId] = { IRT: irtSummary, BayesianNetwork: bnSummary };
+    districtReport.classes[classId] = {
+      IRT: irtSummary,
+      BayesianNetwork: bnSummary,
+      policiesUsed: classPolicyUsage // 🔹 NEW
+    };
   }
 
   // district-wide IRT
@@ -590,10 +694,8 @@ router.get("/teacher/district/:districtId", (req, res) => {
     }
   }
 
-  // 🔹 Attach captured evidence/observations summary
+  // attach captured + coverage
   districtReport.districtSummary.captured = capturedSummary;
-
-  // 🔹 Compute competency/evidence coverage across district
   const competencyCoverage = {};
   const evidenceCoverage = {};
   for (const cap of capturedSummary) {
@@ -612,11 +714,14 @@ router.get("/teacher/district/:districtId", (req, res) => {
       }
     }
   }
-
   districtReport.districtSummary.competencyCoverage = competencyCoverage;
   districtReport.districtSummary.evidenceCoverage = evidenceCoverage;
 
+  // 🔹 Attach policy usage
+  districtReport.policiesUsed = allPolicyUsage;
+
   res.json(districtReport);
 });
+
 
 export default router;

@@ -29,6 +29,34 @@ router.post("/", (req, res) => {
     }
   }
 
+
+  // ✅ Policy validation
+  let strategy = selectionStrategy || "fixed";
+  let policyConfig = nextTaskPolicy || {};
+
+  // Check against /api/policies
+  const availablePolicies = db.policies || [];
+  const foundPolicy = availablePolicies.find((p) => p.type === strategy);
+
+  if (!foundPolicy) {
+    return res.status(400).json({
+      error: `Invalid selectionStrategy: ${strategy}. No matching policy found in /api/policies`,
+    });
+  }
+
+  // If caller passed explicit policyId in nextTaskPolicy, check it
+  if (policyConfig.policyId) {
+    const exists = availablePolicies.some((p) => p.id === policyConfig.policyId);
+    if (!exists) {
+      return res.status(400).json({
+        error: `Invalid nextTaskPolicy.policyId: ${policyConfig.policyId}. Not found in /api/policies`,
+      });
+    }
+  } else {
+    // If no explicit policyId, default to matched strategy policy
+    policyConfig = { policyId: foundPolicy.id, ...policyConfig };
+  }
+
   const newSession = {
     id: `s${Date.now()}`,
     studentId: studentId || null,
@@ -38,8 +66,8 @@ router.post("/", (req, res) => {
 
     // Adaptive state
     studentModel: {},
-    selectionStrategy: selectionStrategy || "fixed",
-    nextTaskPolicy: nextTaskPolicy || {},
+    selectionStrategy: strategy,
+    nextTaskPolicy: policyConfig,
 
     // Lifecycle
     status: "in-progress",
@@ -48,6 +76,7 @@ router.post("/", (req, res) => {
     updatedAt: new Date().toISOString(),
   };
 
+  // ✅ Schema validation
   const { valid, errors } = validateEntity("sessions", newSession, db);
   if (!valid) {
     return res.status(400).json({ error: "Schema validation failed", details: errors });
@@ -59,6 +88,7 @@ router.post("/", (req, res) => {
 
   res.status(201).json(newSession);
 });
+
 
 // ------------------------------
 // GET /api/sessions

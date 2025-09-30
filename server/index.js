@@ -9,6 +9,7 @@ import tasksRoutes from "./routes/tasksRoutes.js";
 import taskModelsRoutes from "./routes/taskModelsRoutes.js";
 import reportsRoutes from "./routes/reportsRoutes.js";
 import studentsRoutes from "./routes/studentsRoutes.js";
+import policiesRoutes from "./routes/policiesRoutes.js";
 
 const app = express();
 app.use(express.json());
@@ -29,6 +30,7 @@ app.use("/api/evidenceModels", evidenceRoutes);
 app.use("/api/taskModels", taskModelsRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/students", studentsRoutes);
+app.use("/api/policies", policiesRoutes);
 // ------------------------------
 // No static serving here!
 // Nginx handles frontend build
