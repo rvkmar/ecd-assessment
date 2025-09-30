@@ -4,13 +4,17 @@ import QuestionBank from "./components/questions/QuestionBank";
 import CompetencyModelBuilder from "./components/competencies/CompetencyModelBuilder";
 import EvidenceModelBuilder from "./components/evidences/EvidenceModelBuilder";
 import TaskModelBuilder from "./components/taskModels/TaskModelBuilder";
+import TasksManager from "./components/tasks/TasksManager";
 import SessionBuilder from "./components/sessions/SessionBuilder";
 import SessionPlayer from "./components/sessions/SessionPlayer";
 import AnalyticsPanel from "./components/AnalyticsPanel";
+
+import AdminPage from "./pages/AdminPage";
+import TeachersManager from "./pages/TeachersManager";
+import StudentsManager from "./pages/StudentsManager";
+
 import Toast from "./components/ui/Toast";
 import NavBar from "./components/ui/NavBar";
-import StudentsManager from "./components/sessions/StudentsManager";
-import TasksManager from "./components/tasks/TasksManager";
 
 // 🔹 Login screen
 function Login({ onLogin }) {
@@ -171,7 +175,9 @@ export default function App() {
         <Route path="/district/*" element={role === "district" ? <DistrictDashboard notify={notify} /> : <Navigate to="/login" />} />
         <Route path="/teacher/*" element={role === "teacher" ? <TeacherDashboard notify={notify} /> : <Navigate to="/login" />} />
         <Route path="/student/*" element={role === "student" ? <StudentDashboard notify={notify} /> : <Navigate to="/login" />} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="/students" element={<StudentsManager notify={notify} />} />
+        <Route path="/teachers" element={<TeachersManager notify={notify} />} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
 
