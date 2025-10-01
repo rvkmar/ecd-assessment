@@ -2,28 +2,29 @@
 library(plumber)
 
 # Load modules
-source("modules/irt.R")
+source("modules/irt.R")       # defines irt_api()
+# source("modules/bn.R")      # optional later
+# source("modules/scoring.R")
+# source("modules/analytics.R")
+# source("modules/utils.R")
 
-# Create router
+# Create main router
 pr <- Plumber$new()
-cat("Mounted so far: (none)\n")
 
-# try mounting inside tryCatch to capture error
-m1 <- tryCatch({
-  pr$mount("/irt", irt_api())
-  "ok"
-}, error = function(e) e)
+# Mount module routers
+pr$mount("/irt/", irt_api())
+# pr$mount("/bn", bn_api())
+# pr$mount("/scoring", scoring_api())
+# pr$mount("/analytics", analytics_api())
 
-print(m1)
-
-# Attach endpoints from modules
-# pr$mount("/irt", irt_api())
-
-# Add a ping endpoint for health checks
-pr$handle("GET", "/ping", function(req, res) {
+# Health check endpoint with JSON serializer
+#* @apiTitle ECD R Backend
+#* @apiDescription Provides IRT, BN, scoring and analytics endpoints
+#* @get /ping
+#* @serializer json
+function() {
   list(status = "ok", time = Sys.time())
-})
+}
 
-# pr
-print("After mounting /irt, endpoints:")
-print(pr$endpoints)
+# Return plumber router
+pr

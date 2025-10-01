@@ -1,4 +1,4 @@
-# modules/irt.R (self-contained)
+# modules/irt.R (self-contained with fallback for too few items)
 # Robust IRT endpoints for ECD assessment
 # Exposes:
 #   POST /irt/estimate   -> per-student ability estimation (EAP or MLE)
@@ -69,8 +69,9 @@ irt_api <- function() {
     if (nAnswered < 2) {
       prop <- ifelse(nAnswered == 0, NA_real_, mean(resp_vec, na.rm = TRUE))
       theta_est <- ifelse(is.na(prop), NA_real_, qnorm(min(max(prop, 1e-6), 1 - 1e-6)))
-      return(list(method = "fallback_proportion", theta = theta_est, stderr = NA_real_,
-                  nItemsAnswered = nAnswered, note = "Too few items answered"))
+      return(list(method = "fallback_proportion", theta = theta_est,
+                  stderr = NA_real_, nItemsAnswered = nAnswered,
+                  note = "Too few items answered, used fallback"))
     }
 
     resp_df <- as.data.frame(t(resp_vec), stringsAsFactors = FALSE)
@@ -106,7 +107,7 @@ irt_api <- function() {
       prop <- mean(resp_vec, na.rm = TRUE)
       theta_est <- qnorm(min(max(prop, 1e-6), 1 - 1e-6))
       return(list(method = "fallback_proportion_after_fail", theta = theta_est, stderr = NA_real_,
-                  nItemsAnswered = nAnswered, note = "IRT model fitting failed"))
+                  nItemsAnswered = nAnswered, note = "IRT model fitting failed, used fallback"))
     }
 
     fs <- NULL
@@ -127,7 +128,7 @@ irt_api <- function() {
       prop <- mean(resp_vec, na.rm = TRUE)
       theta_est <- qnorm(min(max(prop, 1e-6), 1 - 1e-6))
       return(list(method = "fallback_proportion_after_fs_fail", theta = theta_est, stderr = NA_real_,
-                  nItemsAnswered = nAnswered, note = "fscores computation failed"))
+                  nItemsAnswered = nAnswered, note = "fscores failed, used fallback"))
     }
 
     theta_val <- as.numeric(fs[1, 1])
