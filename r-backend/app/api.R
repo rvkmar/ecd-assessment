@@ -1,30 +1,19 @@
-# api.R
-library(plumber)
+# run_irt_api.R
+# Script to start the IRT API server
 
-# Load modules
-source("modules/irt.R")       # defines irt_api()
-# source("modules/bn.R")      # optional later
-# source("modules/scoring.R")
-# source("modules/analytics.R")
-# source("modules/utils.R")
+# Source the IRT module
+source("/home/app/modules/irt.R")
 
-# Create main router
-pr <- Plumber$new()
+# Create the API instance
+api <- irt_api()
 
-# Mount module routers
-pr$mount("/irt/", irt_api())
-# pr$mount("/bn", bn_api())
-# pr$mount("/scoring", scoring_api())
-# pr$mount("/analytics", analytics_api())
+# Start the server on port 4000
+api$run(
+  host = "0.0.0.0",
+  port = 4000,
+  swagger = FALSE  # Set to TRUE if you want Swagger docs
+)
 
-# Health check endpoint with JSON serializer
-#* @apiTitle ECD R Backend
-#* @apiDescription Provides IRT, BN, scoring and analytics endpoints
-#* @get /ping
-#* @serializer json
-function() {
-  list(status = "ok", time = Sys.time())
-}
-
-# Return plumber router
-pr
+# The server will run and display:
+# Running plumber API at http://0.0.0.0:4000
+# Running swagger Docs at http://127.0.0.1:4000/__docs__/ (if swagger=TRUE)

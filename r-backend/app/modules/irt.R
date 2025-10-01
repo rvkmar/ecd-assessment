@@ -1,17 +1,13 @@
-# modules/irt.R (self-contained with fallback for too few items)
-# Robust IRT endpoints for ECD assessment
-# Exposes:
-#   POST /irt/estimate   -> per-student ability estimation (EAP or MLE)
-#   POST /irt/calibrate  -> group calibration (2PL or 3PL)
+# modules/irt.R
+# IRT endpoints for ECD assessment with logging and robust fallbacks
 
 library(plumber)
 library(jsonlite)
 library(mirt)
 
 # ---------------------------
-# Helpers (inlined, no dependency on utils.R)
+# Helpers
 # ---------------------------
-
 .as_num <- function(x, default = NA_real_) {
   if (is.null(x)) return(default)
   suppressWarnings(as.numeric(x))
@@ -21,20 +17,30 @@ library(mirt)
   tryCatch({
     if (is.null(req$postBody) || nchar(req$postBody) == 0) return(NULL)
     jsonlite::fromJSON(req$postBody, simplifyVector = FALSE)
-  }, error = function(e) NULL)
+  }, error = function(e) {
+    message("[irt] Failed to parse body: ", e$message)
+    NULL
+  })
+}
+
+.fallback_theta <- function(resp_vec, note) {
+  prop <- mean(resp_vec, na.rm = TRUE)
+  theta_est <- qnorm(min(max(prop, 1e-6), 1 - 1e-6))
+  message("[irt] Fallback triggered: ", note, ", theta=", theta_est)
+  return(list(method = note, theta = theta_est, stderr = NA_real_,
+              nItemsAnswered = sum(!is.na(resp_vec)), note = note))
 }
 
 # ---------------------------
 # IRT API factory
 # ---------------------------
-
 irt_api <- function() {
   pr <- Plumber$new()
 
   # ---------------------------
   # POST /irt/estimate
   # ---------------------------
-  pr$handle("POST", "/estimate", function(req, res) {
+  pr$handle("POST", "/irt/estimate", function(req, res) {
     body <- .parse_body(req)
     if (is.null(body)) {
       res$status <- 400
@@ -67,15 +73,11 @@ irt_api <- function() {
 
     nAnswered <- sum(!is.na(resp_vec))
     if (nAnswered < 2) {
-      prop <- ifelse(nAnswered == 0, NA_real_, mean(resp_vec, na.rm = TRUE))
-      theta_est <- ifelse(is.na(prop), NA_real_, qnorm(min(max(prop, 1e-6), 1 - 1e-6)))
-      return(list(method = "fallback_proportion", theta = theta_est,
-                  stderr = NA_real_, nItemsAnswered = nAnswered,
-                  note = "Too few items answered, used fallback"))
+      return(.fallback_theta(resp_vec, "Too few items answered"))
     }
 
     resp_df <- as.data.frame(t(resp_vec), stringsAsFactors = FALSE)
-    resp_df[] <- lapply(resp_df, function(x) { if (all(is.na(x))) return(as.numeric(x)); as.numeric(x) })
+    resp_df[] <- lapply(resp_df, as.numeric)
 
     a_par <- sapply(items, function(i) if (!is.null(i$a)) .as_num(i$a) else 1.0)
     b_par <- sapply(items, function(i) if (!is.null(i$b)) .as_num(i$b) else 0.0)
@@ -87,48 +89,45 @@ irt_api <- function() {
     fit_model <- NULL
     estimation_method_used <- method
 
-    try({
+    tryCatch({
       provided_params <- sum(!is.na(a_par) | !is.na(b_par) | !is.na(c_par))
       if (provided_params >= max(2, floor(0.5 * length(qids)))) {
         itemtype <- ifelse(any(c_par > 0), "3PL", "2PL")
-        fit_model <- tryCatch({
-          mirt(resp_df, 1, itemtype = itemtype, pars = par_table, SE = TRUE, verbose = FALSE,
-               technical = list(NCYCLES = 50))
-        }, error = function(e) NULL)
+        fit_model <- mirt(resp_df, 1, itemtype = itemtype, pars = par_table,
+                          SE = TRUE, verbose = FALSE, technical = list(NCYCLES = 50))
       }
       if (is.null(fit_model)) {
         itemtype <- ifelse(any(c_par > 0), "3PL", "2PL")
-        fit_model <- tryCatch({ suppressWarnings(mirt(resp_df, 1, itemtype = itemtype, verbose = FALSE)) },
-                              error = function(e) NULL)
+        fit_model <- suppressWarnings(mirt(resp_df, 1, itemtype = itemtype, verbose = FALSE))
       }
-    }, silent = TRUE)
+    }, error = function(e) {
+      message("[irt] Model fitting failed: ", e$message)
+      fit_model <<- NULL
+    })
 
     if (is.null(fit_model)) {
-      prop <- mean(resp_vec, na.rm = TRUE)
-      theta_est <- qnorm(min(max(prop, 1e-6), 1 - 1e-6))
-      return(list(method = "fallback_proportion_after_fail", theta = theta_est, stderr = NA_real_,
-                  nItemsAnswered = nAnswered, note = "IRT model fitting failed, used fallback"))
+      return(.fallback_theta(resp_vec, "IRT model fitting failed"))
     }
 
-    fs <- NULL
-    try({
+    fs <- tryCatch({
       if (method == "MLE") {
-        fs <- tryCatch({ fscores(fit_model, method = "ML", full.scores.SE = TRUE) }, error = function(e) NULL)
-        if (is.null(fs)) {
-          fs <- fscores(fit_model, method = "EAP", full.scores.SE = TRUE)
+        out <- fscores(fit_model, method = "ML", full.scores.SE = TRUE)
+        if (is.null(out)) {
           estimation_method_used <- "EAP (fallback)"
+          out <- fscores(fit_model, method = "EAP", full.scores.SE = TRUE)
         }
+        out
       } else {
-        fs <- fscores(fit_model, method = "EAP", full.scores.SE = TRUE)
         estimation_method_used <- "EAP"
+        fscores(fit_model, method = "EAP", full.scores.SE = TRUE)
       }
-    }, silent = TRUE)
+    }, error = function(e) {
+      message("[irt] fscores failed: ", e$message)
+      NULL
+    })
 
     if (is.null(fs)) {
-      prop <- mean(resp_vec, na.rm = TRUE)
-      theta_est <- qnorm(min(max(prop, 1e-6), 1 - 1e-6))
-      return(list(method = "fallback_proportion_after_fs_fail", theta = theta_est, stderr = NA_real_,
-                  nItemsAnswered = nAnswered, note = "fscores failed, used fallback"))
+      return(.fallback_theta(resp_vec, "fscores computation failed"))
     }
 
     theta_val <- as.numeric(fs[1, 1])
@@ -139,9 +138,15 @@ irt_api <- function() {
         ii <- tryCatch({ iteminfo(fit_model, Theta = theta_val)[, qid] }, error = function(e) NA_real_)
         if (is.null(ii) || length(ii) == 0) NA_real_ else as.numeric(ii)
       })
-    }, error = function(e) rep(NA_real_, length(qids)))
+    }, error = function(e) {
+      message("[irt] iteminfo failed: ", e$message)
+      rep(NA_real_, length(qids))
+    })
 
-    test_info_val <- tryCatch({ testinfo(fit_model, Theta = theta_val) }, error = function(e) NA_real_)
+    test_info_val <- tryCatch({ testinfo(fit_model, Theta = theta_val) }, error = function(e) {
+      message("[irt] testinfo failed: ", e$message)
+      NA_real_
+    })
 
     itemInfos <- lapply(seq_along(qids), function(i) list(id = qids[i], info = as.numeric(item_info[i])))
 
@@ -152,7 +157,7 @@ irt_api <- function() {
   # ---------------------------
   # POST /irt/calibrate
   # ---------------------------
-  pr$handle("POST", "/calibrate", function(req, res) {
+  pr$handle("POST", "/irt/calibrate", function(req, res) {
     body <- .parse_body(req)
     if (is.null(body)) {
       res$status <- 400
@@ -186,9 +191,14 @@ irt_api <- function() {
     }))
     resp_df <- as.data.frame(mat)
 
-    model <- tryCatch({ mirt(resp_df, 1, itemtype = model_type, verbose = FALSE) }, error = function(e) NULL)
+    model <- tryCatch({
+      mirt(resp_df, 1, itemtype = model_type, verbose = FALSE)
+    }, error = function(e) {
+      message("[irt] Calibration failed: ", e$message)
+      NULL
+    })
+
     if (is.null(model)) {
-      res$status <- 500
       return(list(error = "Calibration failed"))
     }
 
