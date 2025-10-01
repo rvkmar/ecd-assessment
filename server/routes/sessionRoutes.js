@@ -10,6 +10,8 @@ function entropy(p) {
 
 const router = express.Router();
 
+const R_BACKEND = process.env.R_BACKEND_URL || "http://localhost:4000";
+
 // ------------------------------
 // POST /api/sessions
 // ------------------------------
@@ -132,7 +134,112 @@ router.get("/:id", (req, res) => {
 // POST /api/sessions/:id/submit
 // ------------------------------
 // body: { taskId, questionId?, rawAnswer, observationId?, scoredValue?, evidenceId?, rubricLevel? }
-router.post("/:id/submit", (req, res) => {
+// router.post("/:id/submit", (req, res) => {
+//   const { id } = req.params;
+//   const { taskId, questionId, rawAnswer, observationId, scoredValue, evidenceId, rubricLevel } = req.body;
+
+//   const db = loadDB();
+//   const session = db.sessions.find(s => s.id === id && !s.isCompleted);
+//   if (!session) return res.status(404).json({ error: "Session not found or already completed" });
+
+//   if (!session.taskIds.includes(taskId)) {
+//     return res.status(400).json({ error: `Task ${taskId} not part of this session` });
+//   }
+
+//   // 🔹 Validation: observationId & evidenceId
+//   const task = db.tasks.find(t => t.id === taskId);
+//   const taskModel = db.taskModels.find(tm => tm.id === task.taskModelId);
+
+//   let validObs = new Map();
+//   let validEvidenceIds = new Set();
+
+//   for (const emId of taskModel.evidenceModelIds || []) {
+//     const em = db.evidenceModels.find(m => m.id === emId);
+//     if (em) {
+//       for (const obs of em.observations || []) validObs.set(obs.id, obs);
+//       for (const ev of em.evidences || []) validEvidenceIds.add(ev.id);
+//     }
+//   }
+
+//   if (observationId && !validObs.has(observationId)) {
+//     return res.status(400).json({ error: `Invalid observationId: ${observationId}` });
+//   }
+//   if (evidenceId && !validEvidenceIds.has(evidenceId)) {
+//     return res.status(400).json({ error: `Invalid evidenceId: ${evidenceId}` });
+//   }
+//   if (rubricLevel && observationId) {
+//     const obs = validObs.get(observationId);
+//     if (!obs || !obs.rubric || !obs.rubric.levels.includes(rubricLevel)) {
+//       return res.status(400).json({ error: `Invalid rubricLevel ${rubricLevel} for observation ${observationId}` });
+//     }
+//   }
+
+//   // 🔹 Save response in session
+//   const response = {
+//     taskId,
+//     questionId: questionId || null,
+//     rawAnswer: rawAnswer || null,
+//     observationId: observationId || null,
+//     scoredValue: scoredValue !== undefined ? scoredValue : null,
+//     evidenceId: evidenceId || null,
+//     rubricLevel: rubricLevel || null,
+//     timestamp: new Date().toISOString(),
+//   };
+
+//   session.responses.push(response);
+//   session.currentTaskIndex = Math.min(session.currentTaskIndex + 1, session.taskIds.length);
+//   session.updatedAt = new Date().toISOString();
+
+//   // 🔹 Update Task Instance: record generated evidence/observations
+//   if (observationId && !task.generatedObservationIds.includes(observationId)) {
+//     task.generatedObservationIds.push(observationId);
+//   }
+//   if (evidenceId && !task.generatedEvidenceIds.includes(evidenceId)) {
+//     task.generatedEvidenceIds.push(evidenceId);
+//   }
+//   task.updatedAt = new Date().toISOString();
+
+//   // 🔹 IRT theta update (if strategy = IRT) ... (unchanged)
+//   if (session.selectionStrategy === "IRT" && questionId) {
+//     const q = db.questions.find(qq => qq.id === questionId);
+//     if (q && typeof q.metadata?.b === "number") {
+//       const a = q.metadata?.a ?? 1.0;
+//       const b = q.metadata?.b;
+//       const c = q.metadata?.c ?? 0.0;
+
+//       const theta = session.studentModel?.irtTheta ?? 0;
+//       const y = scoredValue === 1 ? 1 : 0; // binary scoring for now
+
+//       // 3PL model probability of correct response
+//       // P(θ) = c + (1-c)/(1 + exp(-a(θ-b)))
+//       const p = c + (1 - c) / (1 + Math.exp(-a * (theta - b)));
+
+//       // gradient of log-likelihood wrt θ
+//       const grad = a * (y - p) * (1 - c);
+
+//       // simple update
+//       const lr = 0.1;
+//       const newTheta = theta + lr * grad;
+
+//       if (!session.studentModel) session.studentModel = {};
+//       session.studentModel.irtTheta = newTheta;
+//     }
+//   }
+
+//   const { valid, errors } = validateEntity("sessions", session, db);
+//   if (!valid) {
+//     return res.status(400).json({ error: "Schema validation failed", details: errors });
+//   }
+
+//   saveDB(db);
+//   res.json(session);
+// });
+
+// ------------------------------
+// POST /api/sessions/:id/submit
+// ------------------------------
+// body: { taskId, questionId?, rawAnswer, observationId?, scoredValue?, evidenceId?, rubricLevel? }
+router.post("/:id/submit", async (req, res) => {
   const { id } = req.params;
   const { taskId, questionId, rawAnswer, observationId, scoredValue, evidenceId, rubricLevel } = req.body;
 
@@ -197,32 +304,39 @@ router.post("/:id/submit", (req, res) => {
   }
   task.updatedAt = new Date().toISOString();
 
-  // 🔹 IRT theta update (if strategy = IRT) ... (unchanged)
-  if (session.selectionStrategy === "IRT" && questionId) {
-    const q = db.questions.find(qq => qq.id === questionId);
-    if (q && typeof q.metadata?.b === "number") {
-      const a = q.metadata?.a ?? 1.0;
-      const b = q.metadata?.b;
-      const c = q.metadata?.c ?? 0.0;
+  // 🔹 IRT theta update via R backend (using global fetch)
+  if (session.selectionStrategy === "IRT") {
+    try {
+      const R_BACKEND_URL = process.env.R_BACKEND_URL || "http://r-backend:4000"; // ✅ fix default port
 
-      const theta = session.studentModel?.irtTheta ?? 0;
-      const y = scoredValue === 1 ? 1 : 0; // binary scoring for now
+      const response = await fetch(`${R_BACKEND_URL}/irt/estimate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          responses: session.responses,
+          itemBank: (db.questions || []).map(q => ({
+            id: q.id,
+            a: q.metadata?.a ?? 1,
+            b: q.metadata?.b ?? 0,
+            c: q.metadata?.c ?? 0
+          }))
+        })
+      });
 
-      // 3PL model probability of correct response  
-      // P(θ) = c + (1-c)/(1 + exp(-a(θ-b)))
-      const p = c + (1 - c) / (1 + Math.exp(-a * (theta - b)));
-
-      // gradient of log-likelihood wrt θ
-      const grad = a * (y - p) * (1 - c);
-
-      // simple update
-      const lr = 0.1;
-      const newTheta = theta + lr * grad;
+      const result = await response.json();
 
       if (!session.studentModel) session.studentModel = {};
-      session.studentModel.irtTheta = newTheta;
+      if (result.theta !== undefined) {
+        session.studentModel.irtTheta = result.theta;
+        session.studentModel.stderr = result.stderr;
+      } else {
+        console.warn("IRT backend did not return theta:", result);
+      }
+    } catch (err) {
+      console.error("IRT estimation failed:", err);
     }
   }
+
 
   const { valid, errors } = validateEntity("sessions", session, db);
   if (!valid) {
@@ -232,6 +346,7 @@ router.post("/:id/submit", (req, res) => {
   saveDB(db);
   res.json(session);
 });
+
 
 // ------------------------------
 // GET /api/sessions/:id/next-task

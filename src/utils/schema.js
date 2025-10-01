@@ -167,46 +167,101 @@ export const schema = {
 // Validation function
 // ------------------------------
 export function validateEntity(collection, obj, db = null) {
-  // Pass db for cross-collection checks (competencies, etc.)
   const rules = schema[collection];
-  if (!rules) return { valid: false, errors: ['Unknown collection'] };
+  if (!rules) return { valid: false, errors: ["Unknown collection"] };
   const errors = [];
 
+  // Helper: validate field against rule def
+  function validateField(key, def, val) {
+    if (val === undefined || val === null) return;
+
+    switch (def.type) {
+      case "string":
+        if (typeof val !== "string") errors.push(`${key} should be string`);
+        if (def.enum && !def.enum.includes(val)) {
+          errors.push(`${key} must be one of: ${def.enum.join(", ")}`);
+        }
+        if (def.minLength && val.length < def.minLength) {
+          errors.push(`${key} must be at least ${def.minLength} characters`);
+        }
+        if (def.format === "date-time") {
+          const d = new Date(val);
+          if (isNaN(d.getTime())) errors.push(`${key} should be a valid date-time`);
+        }
+        break;
+
+      case "number":
+        if (typeof val !== "number") errors.push(`${key} should be number`);
+        break;
+
+      case "boolean":
+        if (typeof val !== "boolean") errors.push(`${key} should be boolean`);
+        break;
+
+      case "array":
+        if (!Array.isArray(val)) errors.push(`${key} should be array`);
+        break;
+
+      case "object":
+        if (typeof val !== "object" || Array.isArray(val)) {
+          errors.push(`${key} should be object`);
+        }
+        break;
+    }
+  }
+
+  // 🔹 Case 1: JSON-schema style
+  if (rules.type === "object" && rules.properties) {
+    for (const reqField of rules.required || []) {
+      if (obj[reqField] === undefined || obj[reqField] === null) {
+        errors.push(`Missing field: ${reqField}`);
+      }
+    }
+
+    for (const [key, def] of Object.entries(rules.properties)) {
+      validateField(key, def, obj[key]);
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  // 🔹 Case 2: Flat-style rules
   for (const key of Object.keys(rules)) {
     const expected = rules[key];
+    const val = obj[key];
 
-    if (obj[key] === undefined || obj[key] === null) {
+    if (val === undefined || val === null) {
       if (["id", "type", "stem", "createdAt", "updatedAt"].includes(key)) {
         errors.push(`Missing field: ${key}`);
       }
       continue;
     }
 
-    if (expected === 'string' && typeof obj[key] !== 'string') {
+    if (expected === "string" && typeof val !== "string") {
       errors.push(`${key} should be string`);
     }
-    if (expected === 'number' && typeof obj[key] !== 'number') {
+    if (expected === "number" && typeof val !== "number") {
       errors.push(`${key} should be number`);
     }
-    if (expected === 'boolean' && typeof obj[key] !== 'boolean') {
+    if (expected === "boolean" && typeof val !== "boolean") {
       errors.push(`${key} should be boolean`);
     }
-    if (expected === 'array' && !Array.isArray(obj[key])) {
+    if (expected === "array" && !Array.isArray(val)) {
       errors.push(`${key} should be array`);
     }
-    if (expected === 'object' && (typeof obj[key] !== 'object' || Array.isArray(obj[key]))) {
+    if (expected === "object" && (typeof val !== "object" || Array.isArray(val))) {
       errors.push(`${key} should be object`);
     }
-    if (expected === 'date') {
-      const d = new Date(obj[key]);
+    if (expected === "date") {
+      const d = new Date(val);
       if (isNaN(d.getTime())) errors.push(`${key} should be date`);
     }
   }
 
-  // 🔹 Conditional rules for questions
+  // 🔹 Existing conditional validations
   if (collection === "questions") {
     if (["constructed", "open"].includes(obj.type)) {
-      if (!obj.metadata || !obj.metadata.expectedAnswer || obj.metadata.expectedAnswer.trim() === "") {
+      if (!obj.metadata?.expectedAnswer || obj.metadata.expectedAnswer.trim() === "") {
         errors.push("expectedAnswer is required in metadata for constructed/open questions");
       }
     }
@@ -223,23 +278,18 @@ export function validateEntity(collection, obj, db = null) {
     }
   }
 
-  // 🔹 Conditional rules for evidenceModels
   if (collection === "evidenceModels") {
     const obsIds = new Set((obj.observations || []).map(o => o.id));
-
-    // gather rubric levels from observations
     const rubricMap = new Map();
     for (const obs of obj.observations || []) {
       if (obs.type === "rubric") {
-        if (!obs.rubric || !Array.isArray(obs.rubric.levels) || obs.rubric.levels.length === 0) {
+        if (!obs.rubric?.levels || obs.rubric.levels.length === 0) {
           errors.push(`Observation ${obs.id} is type rubric but missing rubric.levels`);
         } else {
           rubricMap.set(obs.id, obs.rubric.levels);
         }
       }
     }
-
-    // 🔹 Validate constructs: must reference existing competencies + evidences
     const evidenceIds = new Set((obj.evidences || []).map(e => e.id));
     for (const c of obj.constructs || []) {
       if (!c.competencyId) {
@@ -253,22 +303,19 @@ export function validateEntity(collection, obj, db = null) {
         errors.push(`Construct ${c.id} references invalid evidenceId: ${c.evidenceId}`);
       }
     }
-
-    // 🔹 Validate measurement model weights
-    if (obj.measurementModel && obj.measurementModel.weights) {
+    if (obj.measurementModel?.weights) {
       for (const wId of Object.keys(obj.measurementModel.weights)) {
-        if (obsIds.has(wId)) continue; // weight on observation
-
-        // rubric-level weight: observationId:levelIndex
+        if (obsIds.has(wId)) continue;
         const [obsId, lvlIdxStr] = wId.split(":");
         const levels = rubricMap.get(obsId);
         const idx = parseInt(lvlIdxStr, 10);
-        if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) continue;
-
-        errors.push(`Weight reference ${wId} is not a valid observationId or rubric-level key`);
+        if (!(levels && !isNaN(idx) && idx >= 0 && idx < levels.length)) {
+          errors.push(`Weight reference ${wId} is not a valid observationId or rubric-level key`);
+        }
       }
     }
   }
 
   return { valid: errors.length === 0, errors };
 }
+// ------------------------------
