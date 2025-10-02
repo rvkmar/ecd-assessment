@@ -130,6 +130,7 @@ export default function EvidenceModelForm({ model, onSave }) {
         setModel={setMeasurementModel}
         observations={observations}
         rubrics={rubrics}
+        constructs={constructs}
       />
 
       {/* Save */}

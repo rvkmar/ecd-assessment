@@ -5,7 +5,7 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
   const [competencies, setCompetencies] = useState([]);
   const [modelsData, setModelsData] = useState([]);
   const [questions, setQuestions] = useState([]);
-  const [expanded, setExpanded] = useState({}); // track expanded state by constructId
+  const [expanded, setExpanded] = useState({});
   const [deleteModal, setDeleteModal] = useState({ open: false, id: null, name: "" });
 
   useEffect(() => {
@@ -56,7 +56,6 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
             className="p-4 border rounded-md bg-white shadow-sm flex justify-between items-start"
           >
             <div className="space-y-2">
-              {/* Name + description */}
               <h3 className="text-lg font-semibold">
                 {m.name && m.name.trim() !== "" ? m.name : "(Untitled Model)"}
               </h3>
@@ -64,7 +63,6 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                 <p className="text-sm text-gray-600">{m.description}</p>
               )}
 
-              {/* Schema summary */}
               <div className="text-sm text-gray-700 space-x-4 mt-2">
                 <span>
                   Evidences: <strong>{m.evidences?.length || 0}</strong>
@@ -84,7 +82,6 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                 </span>
               </div>
 
-              {/* Covered competencies */}
               {coveredConstructs.length > 0 && (
                 <div className="mt-2">
                   <h4 className="text-sm font-medium">Covers Competencies:</h4>
@@ -113,7 +110,13 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                             <ul className="list-circle list-inside ml-6 text-gray-600 space-y-1">
                               {linkedObs.map((o) => (
                                 <li key={o.id}>
-                                  Obs: {o.text || o.id}
+                                  Obs: {o.text || o.id} {" "}
+                                  <span className="text-gray-500">[{o.type}]</span>
+                                  {o.scoring?.method && (
+                                    <span className="ml-2 text-xs text-purple-600">
+                                      scoring: {o.scoring.method}
+                                    </span>
+                                  )}
                                   {o.linkedQuestionIds?.length > 0 && (
                                     <ul className="list-disc list-inside ml-6 text-gray-500">
                                       {o.linkedQuestionIds.map((qid) => (
@@ -132,7 +135,6 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                 </div>
               )}
 
-              {/* Rubric details */}
               {m.rubrics && m.rubrics.length > 0 && (
                 <div className="mt-2">
                   <h4 className="text-sm font-medium">Rubrics:</h4>
@@ -147,7 +149,6 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                 </div>
               )}
 
-              {/* Last updated */}
               {m.updatedAt && (
                 <p className="text-xs text-gray-400">
                   Last updated: {new Date(m.updatedAt).toLocaleString()}
@@ -155,7 +156,6 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
               )}
             </div>
 
-            {/* Action buttons */}
             <div className="flex flex-col space-y-2">
               <button
                 onClick={() => onEdit(m)}
@@ -164,17 +164,16 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                 Edit
               </button>
               <button
-                  onClick={() => setDeleteModal({ open: true, id: m.id, name: m.name })}
-                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                >
-                  Delete
+                onClick={() => setDeleteModal({ open: true, id: m.id, name: m.name })}
+                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+              >
+                Delete
               </button>
             </div>
           </div>
         );
       })}
-      
-      {/* Delete confirmation modal */}
+
       <Modal
         isOpen={deleteModal.open}
         onClose={() => setDeleteModal({ open: false, id: null, name: "" })}
@@ -185,7 +184,7 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
           setDeleteModal({ open: false, id: null, name: "" });
         }}
         title="Confirm Delete"
-        message={`Are you sure you want to delete evidence model "${deleteModal.name}"?`}
+        message={`Are you sure you want to delete evidence model \"${deleteModal.name}\"?`}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
       />
     </div>

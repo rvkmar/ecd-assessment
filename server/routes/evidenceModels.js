@@ -8,6 +8,17 @@ const router = express.Router();
 // helpers
 const genId = (prefix = "id") => `${prefix}${Date.now()}`;
 
+// Allowed enums for observation scoring methods
+const allowedScoringMethods = [
+  "binary",
+  "partial",
+  "rubric",
+  "numeric",
+  "likert",
+  "performance",
+  "custom",
+  ];
+
 // Normalize rubric (support criteria)
 const normalizeRubric = (r) => {
   const base = {
@@ -45,10 +56,40 @@ router.get("/", (req, res) => {
 router.post("/", (req, res) => {
   const db = loadDB();
   const { name, description, evidences, constructs, observations, rubrics, measurementModel } = req.body;
-  if (!name || name.trim() === "") {
-    return res.status(400).json({ error: "name is required" });
-  }
 
+  if (!name || name.trim() === "") return res.status(400).json({ error: "name is required" });
+
+  // Normalize observations
+  const observationsNorm = (observations || []).map((o) => ({
+    id: o.id || genId("o"),
+    text: o.text || o.description || "",
+    constructId: o.constructId || "",
+    type: o.type || "other",
+    linkedQuestionIds: o.linkedQuestionIds || [],
+    rubric: o.rubric || null,
+    scoring: o.scoring || null,
+    createdAt: o.createdAt || new Date().toISOString(),
+    updatedAt: o.updatedAt || new Date().toISOString(),
+  }));
+
+  // Validate observation types & scoring methods
+  for (const o of observationsNorm) {
+    if (![
+    "selected_response",
+    "open_response",
+    "rubric",
+    "numeric",
+    "performance",
+    "artifact",
+    "behavior",
+    "other"
+    ].includes(o.type)) {
+      return res.status(400).json({ error: `Observation ${o.id} has invalid type: ${o.type}` });
+      }
+    if (o.scoring && o.scoring.method && !allowedScoringMethods.includes(o.scoring.method)) {
+      return res.status(400).json({ error: `Observation ${o.id} has invalid scoring method: ${o.scoring.method}` });
+      }
+  }
 
   const evidencesNorm = (evidences || []).map((e) => ({ id: e.id || genId("ev"), description: e.description || e.text || "", ...e }));
   const evidenceIdSet = new Set(evidencesNorm.map((e) => e.id));
@@ -64,17 +105,17 @@ router.post("/", (req, res) => {
     if (!model) return res.status(400).json({ error: `Construct ${c.id} references competency ${c.competencyId} with no valid modelId: ${comp.modelId}` });
   }
 
-  const observationsNorm = (observations || []).map((o) => ({
-    id: o.id || genId("o"),
-    text: o.text || o.description || "",
-    constructId: o.constructId || "",
-    type: o.type || "other",
-    linkedQuestionIds: o.linkedQuestionIds || [],
-    rubric: o.rubric || null,
-    scoring: o.scoring || null,
-    createdAt: o.createdAt || new Date().toISOString(),
-    updatedAt: o.updatedAt || new Date().toISOString(),
-  }));
+  // const observationsNorm = (observations || []).map((o) => ({
+  //   id: o.id || genId("o"),
+  //   text: o.text || o.description || "",
+  //   constructId: o.constructId || "",
+  //   type: o.type || "other",
+  //   linkedQuestionIds: o.linkedQuestionIds || [],
+  //   rubric: o.rubric || null,
+  //   scoring: o.scoring || null,
+  //   createdAt: o.createdAt || new Date().toISOString(),
+  //   updatedAt: o.updatedAt || new Date().toISOString(),
+  // }));
 
   const constructIdSet = new Set(constructsNorm.map((c) => c.id));
   for (const o of observationsNorm) {
@@ -175,6 +216,7 @@ router.post("/", (req, res) => {
   saveDB(db);
   res.status(201).json(newModel);
 });
+
 // ------------------------------
 // PUT /api/evidenceModels/:id
 // ------------------------------
@@ -187,6 +229,39 @@ router.put("/:id", (req, res) => {
   if (idx === -1) return res.status(404).json({ error: "Evidence model not found" });
 
   const existing = db.evidenceModels[idx];
+
+  // Normalize observations
+  const observationsIn = updates.observations || existing.observations || [];
+  const observationsCleaned = observationsIn.map((o) => ({
+    id: o.id || genId("o"),
+    text: o.text || o.description || "",
+    constructId: o.constructId,
+    type: o.type || "other",
+    linkedQuestionIds: o.linkedQuestionIds || [],
+    rubric: o.rubric || null,
+    scoring: o.scoring || null,
+    createdAt: o.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    }));
+
+    // Validate observation types & scoring methods
+    for (const o of observationsCleaned) {
+      if (![
+      "selected_response",
+      "open_response",
+      "rubric",
+      "numeric",
+      "performance",
+      "artifact",
+      "behavior",
+      "other"
+      ].includes(o.type)) {
+        return res.status(400).json({ error: `Observation ${o.id} has invalid type: ${o.type}` });
+      }
+      if (o.scoring && o.scoring.method && !allowedScoringMethods.includes(o.scoring.method)) {
+        return res.status(400).json({ error: `Observation ${o.id} has invalid scoring method: ${o.scoring.method}` });
+      }
+    }
 
   // Normalize evidences
   const evidencesIn = updates.evidences || existing.evidences || [];
@@ -208,33 +283,33 @@ router.put("/:id", (req, res) => {
   }
 
   // Normalize observations
-  const observationsIn = updates.observations || existing.observations || [];
-  const observationsCleaned = observationsIn.map((o) => ({
-    id: o.id || genId("o"),
-    text: o.text || o.description || "",
-    constructId: o.constructId,
-    type: o.type || "other",
-    linkedQuestionIds: o.linkedQuestionIds || [],
-    rubric: o.rubric || null,
-    scoring: o.scoring || null,
-    createdAt: o.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
+  // const observationsIn = updates.observations || existing.observations || [];
+  // const observationsCleaned = observationsIn.map((o) => ({
+  //   id: o.id || genId("o"),
+  //   text: o.text || o.description || "",
+  //   constructId: o.constructId,
+  //   type: o.type || "other",
+  //   linkedQuestionIds: o.linkedQuestionIds || [],
+  //   rubric: o.rubric || null,
+  //   scoring: o.scoring || null,
+  //   createdAt: o.createdAt || new Date().toISOString(),
+  //   updatedAt: new Date().toISOString(),
+  // }));
 
-  for (const o of observationsCleaned) {
-    if (![
-      "selected_response",
-      "open_response",
-      "rubric",
-      "numeric",
-      "performance",
-      "artifact",
-      "behavior",
-      "other"
-    ].includes(o.type)) {
-      return res.status(400).json({ error: `Observation ${o.id} has invalid type: ${o.type}` });
-    }
-  }
+  // for (const o of observationsCleaned) {
+  //   if (![
+  //     "selected_response",
+  //     "open_response",
+  //     "rubric",
+  //     "numeric",
+  //     "performance",
+  //     "artifact",
+  //     "behavior",
+  //     "other"
+  //   ].includes(o.type)) {
+  //     return res.status(400).json({ error: `Observation ${o.id} has invalid type: ${o.type}` });
+  //   }
+  // }
 
   // 🔒 Strict ECD: validate observation.type vs linked question.type
   for (const o of observationsCleaned) {

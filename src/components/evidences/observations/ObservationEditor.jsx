@@ -76,6 +76,10 @@ export default function ObservationEditor({ observations, setObservations, const
             <SelectItem value="binary">Binary</SelectItem>
             <SelectItem value="partial">Partial</SelectItem>
             <SelectItem value="rubric">Rubric</SelectItem>
+            <SelectItem value="numeric">Numeric</SelectItem>
+            <SelectItem value="likert">Likert</SelectItem>
+            <SelectItem value="performance">Performance</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
           </SelectContent>
         </Select>
 
@@ -86,7 +90,7 @@ export default function ObservationEditor({ observations, setObservations, const
           </div>
         )}
 
-        {/* Partial scoring: assign weights per linked question option */}
+        {/* Partial scoring */}
         {scoring.method === "partial" && (
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Partial Weights (by option)</h4>
@@ -119,7 +123,7 @@ export default function ObservationEditor({ observations, setObservations, const
           </div>
         )}
 
-        {/* Rubric scoring: assign weights to rubric levels */}
+        {/* Rubric scoring */}
         {scoring.method === "rubric" && obs.type === "rubric" && (
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Rubric Weights</h4>
@@ -148,6 +152,74 @@ export default function ObservationEditor({ observations, setObservations, const
                   ))
                 )
               )}
+          </div>
+        )}
+
+        {/* Numeric scoring */}
+        {scoring.method === "numeric" && (
+          <div className="text-sm text-gray-600">
+            <p>Numeric response will be used directly as score.</p>
+          </div>
+        )}
+
+        {/* Likert scoring */}
+        {scoring.method === "likert" && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Likert Scale Weights</h4>
+            {["Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree"].map((label, idx) => (
+              <div key={idx} className="flex items-center space-x-2">
+                <label className="flex-1 text-sm">{label}</label>
+                <Input
+                  type="number"
+                  step="1"
+                  value={scoring.weights?.[label] ?? idx+1}
+                  onChange={(e) =>
+                    setScoring({ weights: { ...scoring.weights, [label]: parseInt(e.target.value) || 0 } })
+                  }
+                  className="w-20"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Performance scoring */}
+        {scoring.method === "performance" && (
+          <div>
+            <label className="block text-sm font-medium">Performance Rules (JSON)</label>
+            <textarea
+              rows={4}
+              value={JSON.stringify(scoring.rules || {}, null, 2)}
+              onChange={(e) => {
+                try {
+                  const parsed = JSON.parse(e.target.value);
+                  setScoring({ rules: parsed });
+                } catch {
+                  // ignore parse errors
+                }
+              }}
+              className="w-full border rounded p-2 font-mono text-xs"
+            />
+          </div>
+        )}
+
+        {/* Custom scoring */}
+        {scoring.method === "custom" && (
+          <div>
+            <label className="block text-sm font-medium">Custom Scoring Config (JSON)</label>
+            <textarea
+              rows={4}
+              value={JSON.stringify(scoring.config || {}, null, 2)}
+              onChange={(e) => {
+                try {
+                  const parsed = JSON.parse(e.target.value);
+                  setScoring({ config: parsed });
+                } catch {
+                  // ignore parse errors
+                }
+              }}
+              className="w-full border rounded p-2 font-mono text-xs"
+            />
           </div>
         )}
       </div>
@@ -201,7 +273,7 @@ export default function ObservationEditor({ observations, setObservations, const
 
             {/* Type */}
             <div>
-              <label className="block text-sm font-medium">Type of Observation</label>
+              <label className="block text-sm font-medium">Type</label>
               <select
                 value={o.type}
                 onChange={(e) => updateObservation(o.id, { type: e.target.value })}

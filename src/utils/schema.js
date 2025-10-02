@@ -44,16 +44,33 @@ export const schema = {
     evidences: 'array',     // [{ id, description }]
     constructs: 'array',    // [{ id, competencyId, evidenceId }]
     observations: 'array',  // [{ 
-    //    id, 
-    //    type,                // "mcq" | "constructed" | "rubric" | "other"
-    //    linkedQuestionIds,   // items/tasks that generate this observation
-    //    rubric: {            // only if type = rubric
-    //      levels: ['string'], // qualitative levels
-    //    },
-    //    scoring: {           // optional simple scoring rule for obs
-    //      method: "binary" | "partial" | "rubric",
-    //      weights: {}
-    //    }
+    // Observations structure
+    // Each observation is evidence of student performance
+    // {
+    // id: string,
+    // text: string,
+    // type: "selected_response" | "open_response" | "rubric" | "numeric" | "performance" | "artifact" | "behavior" | "other",
+    // constructId: string,
+    // linkedQuestionIds: string[],
+    // rubric?: object,
+    // scoring?: {
+    // method: "binary" | "partial" | "rubric" | "numeric" | "likert" | "performance" | "custom",
+    // weights?: {},
+    // config?: {}, // for custom/performance rules
+    // rules?: {} // for performance scoring
+    // }
+    // }
+
+
+    // Notes:
+    // - selected_response → linked to MCQ questions
+    // - open_response → linked to constructed-response questions
+    // - rubric → teacher-assessed rubric scoring
+    // - numeric → direct numeric entry/measurement
+    // - performance → logs, simulations, multi-step tasks
+    // - artifact → uploaded file/project evidence
+    // - behavior → observational/behavioral evidence
+    // - other → fallback/experimental
     // }]
 
     // Measurement Model (how observables → competencies)
