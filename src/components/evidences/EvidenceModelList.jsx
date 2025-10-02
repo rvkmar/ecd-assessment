@@ -34,7 +34,6 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
     questions.find((q) => q.id === id)?.text ||
     `Unknown Question (${id})`;
 
-
   const toggleExpand = (constructId) => {
     setExpanded((prev) => ({
       ...prev,
@@ -58,8 +57,10 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
           >
             <div className="space-y-2">
               {/* Name + description */}
-              <h3 className="text-lg font-semibold">{m.name}</h3>
-              {m.description && (
+              <h3 className="text-lg font-semibold">
+                {m.name && m.name.trim() !== "" ? m.name : "(Untitled Model)"}
+              </h3>
+              {m.description && m.description.trim() !== "" && (
                 <p className="text-sm text-gray-600">{m.description}</p>
               )}
 
@@ -78,7 +79,7 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                   Rubrics: <strong>{m.rubrics?.length || 0}</strong>
                 </span>
                 <span>
-                  Model:{" "}
+                  Model: {" "}
                   <strong>{m.measurementModel?.type || "not set"}</strong>
                 </span>
               </div>
@@ -127,6 +128,21 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                         </li>
                       );
                     })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Rubric details */}
+              {m.rubrics && m.rubrics.length > 0 && (
+                <div className="mt-2">
+                  <h4 className="text-sm font-medium">Rubrics:</h4>
+                  <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 ml-4">
+                    {m.rubrics.map((r) => (
+                      <li key={r.id}>
+                        {r.name || r.id}
+                        {r.description && <span className="text-gray-500"> – {r.description}</span>}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               )}

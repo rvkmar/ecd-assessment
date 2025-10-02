@@ -1,73 +1,93 @@
-import React, { useState } from "react";
+import React from "react";
 
+/**
+ * EvidenceEditor
+ *
+ * Simple editor for evidences in an Evidence Model.
+ * Now styled consistently with RubricManager and other editors.
+ * Each evidence has: { id, description }
+ */
 export default function EvidenceEditor({ evidences, setEvidences }) {
-  const [newDescription, setNewDescription] = useState("");
-
   const addEvidence = () => {
-    if (!newDescription.trim()) return;
-    const newEvidence = {
-      id: `ev${Date.now()}`,
-      description: newDescription.trim(),
-    };
-    setEvidences([...evidences, newEvidence]);
-    setNewDescription("");
+    setEvidences([
+      ...evidences,
+      {
+        id: `ev${Date.now()}`,
+        description: "New Evidence",
+      },
+    ]);
   };
 
-  const updateEvidence = (id, description) => {
+  const updateEvidence = (id, updates) => {
     setEvidences(
-      evidences.map((ev) =>
-        ev.id === id ? { ...ev, description } : ev
-      )
+      evidences.map((e) => (e.id === id ? { ...e, ...updates } : e))
     );
   };
 
   const removeEvidence = (id) => {
-    setEvidences(evidences.filter((ev) => ev.id !== id));
+    setEvidences(evidences.filter((e) => e.id !== id));
   };
 
   return (
-    <div className="p-4 border rounded-md space-y-2">
-      <h3 className="text-lg font-semibold">Evidences</h3>
-
-      {/* Add new evidence */}
-      <div className="flex space-x-2">
-        <input
-          type="text"
-          className="flex-1 border p-2 rounded"
-          placeholder="New evidence description"
-          value={newDescription}
-          onChange={(e) => setNewDescription(e.target.value)}
-        />
+    <div className="p-4 border rounded-md space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Evidences</h3>
         <button
           type="button"
           onClick={addEvidence}
-          className="bg-blue-500 text-white px-3 py-1 rounded"
+          className="bg-green-600 text-white px-3 py-1 rounded"
         >
-          Add
+          + Add Evidence
         </button>
       </div>
 
-      {/* List existing evidences */}
       {evidences.length === 0 && (
-        <p className="text-gray-500">No evidences added yet.</p>
+        <p className="text-gray-500 text-sm">No evidences defined yet.</p>
       )}
 
-      <ul className="space-y-2">
-        {evidences.map((ev) => (
-          <li key={ev.id} className="flex items-center space-x-2">
-            <input
-              type="text"
-              className="flex-1 border p-1 rounded"
-              value={ev.description}
-              onChange={(e) => updateEvidence(ev.id, e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={() => removeEvidence(ev.id)}
-              className="bg-red-500 text-white px-2 py-1 rounded"
-            >
-              ✕
-            </button>
+      <ul className="space-y-3">
+        {evidences.map((e) => (
+          <li
+            key={e.id}
+            className="p-3 border rounded bg-gray-50 space-y-2 shadow-sm"
+          >
+            {/* ID (read-only) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Evidence ID
+              </label>
+              <input
+                type="text"
+                value={e.id}
+                readOnly
+                className="w-full border rounded p-2 bg-gray-100 text-sm"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Description
+              </label>
+              <textarea
+                rows={2}
+                value={e.description}
+                onChange={(ev) =>
+                  updateEvidence(e.id, { description: ev.target.value })
+                }
+                className="w-full border rounded p-2 text-sm"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => removeEvidence(e.id)}
+                className="bg-red-500 text-white px-3 py-1 rounded"
+              >
+                ✕ Remove
+              </button>
+            </div>
           </li>
         ))}
       </ul>

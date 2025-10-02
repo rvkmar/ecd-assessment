@@ -1,4 +1,4 @@
-// server/routes/evidenceModels.js
+// server/routes/evidenceModels.js (full patched with rubric criteria + restored cascade + full validation)
 import express from "express";
 import { loadDB, saveDB } from "../../src/utils/db-server.js";
 import { validateEntity } from "../../src/utils/schema.js";
@@ -7,6 +7,29 @@ const router = express.Router();
 
 // helpers
 const genId = (prefix = "id") => `${prefix}${Date.now()}`;
+
+// Normalize rubric (support criteria)
+const normalizeRubric = (r) => {
+  const base = {
+    id: r.id || genId("r"),
+    observationId: r.observationId || "",
+    name: r.name || "",
+    description: r.description || "",
+    criteria: Array.isArray(r.criteria) ? r.criteria : [],
+    levels: Array.isArray(r.levels) ? r.levels : [],
+  };
+  if (base.criteria && base.criteria.length > 0) {
+    const flattened = [];
+    for (const c of base.criteria) {
+      if (!Array.isArray(c.levels)) continue;
+      for (const l of c.levels) {
+        if (l && l.name) flattened.push(l.name);
+      }
+    }
+    base.levels = flattened;
+  }
+  return base;
+};
 
 // ------------------------------
 // GET /api/evidenceModels
@@ -19,56 +42,28 @@ router.get("/", (req, res) => {
 // ------------------------------
 // POST /api/evidenceModels
 // ------------------------------
-// body: { name, description?, evidences?, constructs?, observations?, rubrics?, measurementModel? }
 router.post("/", (req, res) => {
   const db = loadDB();
   const { name, description, evidences, constructs, observations, rubrics, measurementModel } = req.body;
-
-  // Basic required name
-  if (!name) return res.status(400).json({ error: "name is required" });
-
-  // Normalize arrays and ensure ids exist
-  const evidencesNorm = (evidences || []).map((e) => ({
-    id: e.id || genId("ev"),
-    description: e.description || e.text || "",
-    ...e,
-  }));
-
-  const evidenceIdSet = new Set(evidencesNorm.map((e) => e.id));
-
-  const constructsNorm = (constructs || []).map((c) => ({
-    id: c.id || genId("c"),
-    text: c.text || "",
-    competencyId: c.competencyId || "",
-    evidenceId: c.evidenceId || "",
-  }));
-
-  // Validate constructs reference evidenceIds + competencyIds (if db provided)
-  for (const c of constructsNorm) {
-    if (!c.evidenceId) {
-      return res.status(400).json({ error: `Construct ${c.id} is missing evidenceId` });
-    }
-    if (!evidenceIdSet.has(c.evidenceId)) {
-      return res.status(400).json({ error: `Construct ${c.id} references invalid evidenceId: ${c.evidenceId}` });
-    }
-    if (!c.competencyId) {
-      return res.status(400).json({ error: `Construct ${c.id} is missing competencyId` });
-    }
-    const comp = db.competencies?.find((comp) => comp.id === c.competencyId);
-    if (!comp) {
-      return res.status(400).json({
-        error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}`,
-      });
-    }
-    const model = db.competencyModels?.find((m) => m.id === comp.modelId);
-    if (!model) {
-      return res.status(400).json({
-        error: `Construct ${c.id} references competency ${c.competencyId} which has no valid modelId: ${comp.modelId}`,
-      });
-    }
+  if (!name || name.trim() === "") {
+    return res.status(400).json({ error: "name is required" });
   }
 
-  // Observations: include linkedQuestionIds, rubric info, constructId
+
+  const evidencesNorm = (evidences || []).map((e) => ({ id: e.id || genId("ev"), description: e.description || e.text || "", ...e }));
+  const evidenceIdSet = new Set(evidencesNorm.map((e) => e.id));
+
+  const constructsNorm = (constructs || []).map((c) => ({ id: c.id || genId("c"), text: c.text || "", competencyId: c.competencyId || "", evidenceId: c.evidenceId || "" }));
+  for (const c of constructsNorm) {
+    if (!c.evidenceId) return res.status(400).json({ error: `Construct ${c.id} is missing evidenceId` });
+    if (!evidenceIdSet.has(c.evidenceId)) return res.status(400).json({ error: `Construct ${c.id} references invalid evidenceId: ${c.evidenceId}` });
+    if (!c.competencyId) return res.status(400).json({ error: `Construct ${c.id} is missing competencyId` });
+    const comp = db.competencies?.find((co) => co.id === c.competencyId);
+    if (!comp) return res.status(400).json({ error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}` });
+    const model = db.competencyModels?.find((m) => m.id === comp.modelId);
+    if (!model) return res.status(400).json({ error: `Construct ${c.id} references competency ${c.competencyId} with no valid modelId: ${comp.modelId}` });
+  }
+
   const observationsNorm = (observations || []).map((o) => ({
     id: o.id || genId("o"),
     text: o.text || o.description || "",
@@ -81,74 +76,83 @@ router.post("/", (req, res) => {
     updatedAt: o.updatedAt || new Date().toISOString(),
   }));
 
-  // Validate that each observation's constructId exists among constructs
   const constructIdSet = new Set(constructsNorm.map((c) => c.id));
   for (const o of observationsNorm) {
-    if (!o.constructId) {
-      return res.status(400).json({ error: `Observation ${o.id} is missing constructId` });
+    if (![
+      "selected_response",
+      "open_response",
+      "rubric",
+      "numeric",
+      "performance",
+      "artifact",
+      "behavior",
+      "other"
+    ].includes(o.type)) {
+      return res.status(400).json({ error: `Observation ${o.id} has invalid type: ${o.type}` });
     }
-    if (!constructIdSet.has(o.constructId)) {
-      return res.status(400).json({ error: `Observation ${o.id} references invalid constructId: ${o.constructId}` });
-    }
+
+    if (!o.constructId) return res.status(400).json({ error: `Observation ${o.id} is missing constructId` });
+    if (!constructIdSet.has(o.constructId)) return res.status(400).json({ error: `Observation ${o.id} references invalid constructId: ${o.constructId}` });
     if (o.type === "rubric") {
       if (!o.rubric || !Array.isArray(o.rubric.levels) || o.rubric.levels.length === 0) {
         return res.status(400).json({ error: `Observation ${o.id} is type rubric but missing rubric.levels` });
       }
     }
-    // If linkedQuestionIds provided, check existence in db.questions
+
     for (const qid of o.linkedQuestionIds || []) {
-      if (!db.questions?.find((q) => q.id === qid)) {
+      const q = db.questions?.find((q) => q.id === qid);
+      if (!q) {
         return res.status(400).json({ error: `Observation ${o.id} linkedQuestionId invalid: ${qid}` });
+      }
+      // 🔒 Strict ECD: enforce only for selected_response & open_response
+      if (o.type === "selected_response" && q.type !== "mcq") {
+        return res.status(400).json({ error: `Observation ${o.id} is selected_response but linked question ${qid} is ${q.type}` });
+      }
+      if (o.type === "open_response" && q.type !== "constructed") {
+        return res.status(400).json({ error: `Observation ${o.id} is open_response but linked question ${qid} is ${q.type}` });
+      }
+      // rubric/numeric/performance/artifact/behavior/other → no strict enforcement
+    }
+  }
+
+  const rubricsNorm = (rubrics || []).map((r) => normalizeRubric(r));
+  const observationIdSet = new Set(observationsNorm.map((o) => o.id));
+  for (const r of rubricsNorm) {
+    if (!r.observationId) return res.status(400).json({ error: `Rubric ${r.id} missing observationId` });
+    if (!observationIdSet.has(r.observationId)) return res.status(400).json({ error: `Rubric ${r.id} references invalid observationId: ${r.observationId}` });
+    if ((!Array.isArray(r.levels) || r.levels.length === 0) && (!Array.isArray(r.criteria) || r.criteria.length === 0)) {
+      return res.status(400).json({ error: `Rubric ${r.id} must have levels or criteria` });
+    }
+    if (Array.isArray(r.criteria)) {
+      for (const c of r.criteria) {
+        if (!c.name || c.name.trim() === "") return res.status(400).json({ error: `Criterion in rubric ${r.id} missing name` });
+        if (!Array.isArray(c.levels) || c.levels.length === 0) return res.status(400).json({ error: `Criterion ${c.name} in rubric ${r.id} must have at least one level` });
+        for (const l of c.levels) {
+          if (!l.name || l.name.trim() === "") return res.status(400).json({ error: `Level in criterion ${c.name} of rubric ${r.id} missing name` });
+          if (l.score !== undefined && typeof l.score !== "number") return res.status(400).json({ error: `Score for level ${l.name} in rubric ${r.id} must be a number` });
+        }
       }
     }
   }
 
-  // Rubrics: separate collection referencing observations
-  const rubricsNorm = (rubrics || []).map((r) => ({
-    id: r.id || genId("r"),
-    observationId: r.observationId || "",
-    levels: r.levels || [],
-  }));
-
-  const observationIdSet = new Set(observationsNorm.map((o) => o.id));
-  for (const r of rubricsNorm) {
-    if (!r.observationId) {
-      return res.status(400).json({ error: `Rubric ${r.id} missing observationId` });
-    }
-    if (!observationIdSet.has(r.observationId)) {
-      return res.status(400).json({ error: `Rubric ${r.id} references invalid observationId: ${r.observationId}` });
-    }
-    if (!Array.isArray(r.levels) || r.levels.length === 0) {
-      return res.status(400).json({ error: `Rubric ${r.id} must have levels` });
-    }
-  }
-
-  // Validate measurementModel weights (if any)
-  const rubricMap = new Map(); // observationId -> levels array
+  const rubricMap = new Map();
   for (const o of observationsNorm) {
-    if (o.type === "rubric") {
-      rubricMap.set(o.id, o.rubric?.levels || []);
-    }
+    if (o.type === "rubric") rubricMap.set(o.id, o.rubric?.levels || []);
   }
   const validObsIds = new Set(observationsNorm.map((o) => o.id));
   const validRubricIds = new Set(rubricsNorm.map((r) => r.id));
-
   const cleanedMeasurementModel = measurementModel ? { ...measurementModel } : { type: "sum", weights: {} };
   cleanedMeasurementModel.weights = cleanedMeasurementModel.weights || {};
-
-  for (const wId of Object.keys(cleanedMeasurementModel.weights || {})) {
-    if (validObsIds.has(wId)) continue; // observation-level weight
-    if (validRubricIds.has(wId)) continue; // rubric-level (by rubric id)
-    // check rubric-level key like "rubricId:levelIndex"
+  for (const wId of Object.keys(cleanedMeasurementModel.weights)) {
+    if (validObsIds.has(wId)) continue;
+    if (validRubricIds.has(wId)) continue;
     const [rubricId, lvlIdxStr] = wId.split(":");
     const levels = rubricMap.get(rubricId) || (rubricsNorm.find(r => r.id === rubricId)?.levels || []);
     const idx = parseInt(lvlIdxStr, 10);
     if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) continue;
-
     return res.status(400).json({ error: `Invalid measurementModel weight key: ${wId}` });
   }
 
-  // Build the model
   const newModel = {
     id: `em${Date.now()}`,
     name,
@@ -163,20 +167,14 @@ router.post("/", (req, res) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-
-  // Final schema validation
   const { valid, errors } = validateEntity("evidenceModels", newModel, db);
-  if (!valid) {
-    return res.status(400).json({ error: "Schema validation failed", details: errors });
-  }
+  if (!valid) return res.status(400).json({ error: "Schema validation failed", details: errors });
 
   db.evidenceModels = db.evidenceModels || [];
   db.evidenceModels.push(newModel);
   saveDB(db);
-
   res.status(201).json(newModel);
 });
-
 // ------------------------------
 // PUT /api/evidenceModels/:id
 // ------------------------------
@@ -190,52 +188,28 @@ router.put("/:id", (req, res) => {
 
   const existing = db.evidenceModels[idx];
 
-  // Merge incoming arrays carefully, regenerate ids where needed
+  // Normalize evidences
   const evidencesIn = updates.evidences || existing.evidences || [];
   const evidencesNorm = evidencesIn.map((e) => ({ id: e.id || genId("ev"), description: e.description || e.text || "", ...e }));
 
   const evidenceIdSet = new Set(evidencesNorm.map((e) => e.id));
 
+  // Normalize constructs
   const constructsIn = updates.constructs || existing.constructs || [];
-  const constructsNorm = constructsIn.map((c) => ({
-    id: c.id || genId("c"),
-    text: c.text || "",
-    competencyId: c.competencyId || "",
-    evidenceId: c.evidenceId || "",
-  }));
-
-  // Validate constructs
+  const constructsNorm = constructsIn.map((c) => ({ id: c.id || genId("c"), text: c.text || "", competencyId: c.competencyId || "", evidenceId: c.evidenceId || "" }));
   for (const c of constructsNorm) {
-    if (!c.evidenceId) {
-      return res.status(400).json({ error: `Construct ${c.id} is missing evidenceId` });
-    }
-    if (!evidenceIdSet.has(c.evidenceId)) {
-      return res.status(400).json({ error: `Construct ${c.id} references invalid evidenceId: ${c.evidenceId}` });
-    }
-    if (!c.competencyId) {
-      return res.status(400).json({ error: `Construct ${c.id} is missing competencyId` });
-    }
-
+    if (!c.evidenceId) return res.status(400).json({ error: `Construct ${c.id} is missing evidenceId` });
+    if (!evidenceIdSet.has(c.evidenceId)) return res.status(400).json({ error: `Construct ${c.id} references invalid evidenceId: ${c.evidenceId}` });
+    if (!c.competencyId) return res.status(400).json({ error: `Construct ${c.id} is missing competencyId` });
     const comp = db.competencies?.find((co) => co.id === c.competencyId);
-    if (!comp) {
-      return res.status(400).json({
-        error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}`,
-      });
-    }
-
+    if (!comp) return res.status(400).json({ error: `Construct ${c.id} references invalid competencyId: ${c.competencyId}` });
     const model = db.competencyModels?.find((m) => m.id === comp.modelId);
-    if (!model) {
-      return res.status(400).json({
-        error: `Construct ${c.id} references competency ${c.competencyId} which has invalid modelId: ${comp.modelId}`,
-      });
-    }
-
+    if (!model) return res.status(400).json({ error: `Construct ${c.id} references competency ${c.competencyId} with invalid modelId: ${comp.modelId}` });
   }
 
-  // Observations: keep only those belonging to kept constructs
+  // Normalize observations
   const observationsIn = updates.observations || existing.observations || [];
-  const remainingConstructIds = new Set(constructsNorm.map((c) => c.id));
-  const observationsCleaned = (observationsIn || []).filter((o) => remainingConstructIds.has(o.constructId)).map((o) => ({
+  const observationsCleaned = observationsIn.map((o) => ({
     id: o.id || genId("o"),
     text: o.text || o.description || "",
     constructId: o.constructId,
@@ -247,59 +221,86 @@ router.put("/:id", (req, res) => {
     updatedAt: new Date().toISOString(),
   }));
 
-  // Remove rubrics that reference removed observations
-  const rubricsIn = updates.rubrics || existing.rubrics || [];
-  const remainingObsIds = new Set(observationsCleaned.map((o) => o.id));
-  const rubricsCleaned = (rubricsIn || []).filter((r) => remainingObsIds.has(r.observationId)).map((r) => ({
-    id: r.id || genId("r"),
-    observationId: r.observationId,
-    levels: r.levels || [],
-  }));
-
-  // Validate rubrics point to valid observations
-  for (const r of rubricsCleaned) {
-    if (!remainingObsIds.has(r.observationId)) {
-      return res.status(400).json({ error: `Rubric ${r.id} references invalid observationId: ${r.observationId}` });
-    }
-    if (!Array.isArray(r.levels) || r.levels.length === 0) {
-      return res.status(400).json({ error: `Rubric ${r.id} must have at least one level` });
-    }
-  }
-
-  // Rebuild rubric map for measurement weight validation
-  const rubricMap = new Map(); // rubricId -> levels
-  for (const r of rubricsCleaned) {
-    rubricMap.set(r.id, r.levels || []);
-  }
-  // Also add observation-level rubric entries from observation.rubric if present
   for (const o of observationsCleaned) {
-    if (o.type === "rubric" && o.rubric?.levels) rubricMap.set(o.id, o.rubric.levels);
+    if (![
+      "selected_response",
+      "open_response",
+      "rubric",
+      "numeric",
+      "performance",
+      "artifact",
+      "behavior",
+      "other"
+    ].includes(o.type)) {
+      return res.status(400).json({ error: `Observation ${o.id} has invalid type: ${o.type}` });
+    }
   }
 
-  // Clean measurementModel.weights
-  const rawMeasurement = updates.measurementModel || existing.measurementModel || { type: "sum", weights: {} };
-  const rawWeights = rawMeasurement.weights || {};
-  let cleanedWeights = {};
+  // 🔒 Strict ECD: validate observation.type vs linked question.type
+  for (const o of observationsCleaned) {
+    for (const qid of o.linkedQuestionIds || []) {
+      const q = db.questions?.find((q) => q.id === qid);
+      if (!q) {
+        return res.status(400).json({ error: `Observation ${o.id} linkedQuestionId invalid: ${qid}` });
+      }
+      // 🔒 Strict ECD: enforce only for selected_response & open_response
+      if (o.type === "selected_response" && q.type !== "mcq") {
+        return res.status(400).json({
+          error: `Observation ${o.id} is selected_response but linked question ${qid} is ${q.type}`
+        });
+      }
+      if (o.type === "open_response" && q.type !== "constructed") {
+        return res.status(400).json({
+          error: `Observation ${o.id} is open_response but linked question ${qid} is ${q.type}`
+        });
+      }
+      // rubric/numeric/performance/artifact/behavior/other → no strict enforcement
+    }
+  }
+
+  // Normalize rubrics
+  const rubricsIn = updates.rubrics || existing.rubrics || [];
+  const rubricsCleaned = rubricsIn.map((r) => normalizeRubric(r));
+
+  // Validate rubrics
+  const remainingObsIds = new Set(observationsCleaned.map((o) => o.id));
+  for (const r of rubricsCleaned) {
+    if (!r.observationId) return res.status(400).json({ error: `Rubric ${r.id} missing observationId` });
+    if (!remainingObsIds.has(r.observationId)) return res.status(400).json({ error: `Rubric ${r.id} references invalid observationId: ${r.observationId}` });
+    if ((!Array.isArray(r.levels) || r.levels.length === 0) && (!Array.isArray(r.criteria) || r.criteria.length === 0)) {
+      return res.status(400).json({ error: `Rubric ${r.id} must have levels or criteria` });
+    }
+    if (Array.isArray(r.criteria)) {
+      for (const c of r.criteria) {
+        if (!c.name || c.name.trim() === "") return res.status(400).json({ error: `Criterion in rubric ${r.id} missing name` });
+        if (!Array.isArray(c.levels) || c.levels.length === 0) return res.status(400).json({ error: `Criterion ${c.name} in rubric ${r.id} must have at least one level` });
+        for (const l of c.levels) {
+          if (!l.name || l.name.trim() === "") return res.status(400).json({ error: `Level in criterion ${c.name} of rubric ${r.id} missing name` });
+          if (l.score !== undefined && typeof l.score !== "number") return res.status(400).json({ error: `Score for level ${l.name} in rubric ${r.id} must be a number` });
+        }
+      }
+    }
+  }
+
+  // Measurement model validation
+  const rubricMap = new Map();
+  for (const r of rubricsCleaned) {
+    if (Array.isArray(r.levels)) rubricMap.set(r.id, r.levels);
+  }
   const validObsIds = new Set(observationsCleaned.map((o) => o.id));
   const validRubricIds = new Set(rubricsCleaned.map((r) => r.id));
 
+  const rawMeasurement = updates.measurementModel || existing.measurementModel || { type: "sum", weights: {} };
+  const rawWeights = rawMeasurement.weights || {};
+  const cleanedWeights = {};
+
   for (const [wId, wVal] of Object.entries(rawWeights)) {
-    if (validObsIds.has(wId)) {
-      cleanedWeights[wId] = wVal;
-      continue;
-    }
-    if (validRubricIds.has(wId)) {
-      cleanedWeights[wId] = wVal;
-      continue;
-    }
+    if (validObsIds.has(wId)) { cleanedWeights[wId] = wVal; continue; }
+    if (validRubricIds.has(wId)) { cleanedWeights[wId] = wVal; continue; }
     const [rubricId, lvlIdxStr] = wId.split(":");
     const levels = rubricMap.get(rubricId);
     const idx = parseInt(lvlIdxStr, 10);
-    if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) {
-      cleanedWeights[wId] = wVal;
-      continue;
-    }
-    // else ignore invalid weight key (do not crash) — or return error (choose strict)
+    if (levels && !isNaN(idx) && idx >= 0 && idx < levels.length) { cleanedWeights[wId] = wVal; continue; }
     return res.status(400).json({ error: `Invalid measurementModel weight key: ${wId}` });
   }
 
@@ -317,39 +318,69 @@ router.put("/:id", (req, res) => {
     updatedAt: new Date().toISOString(),
   };
 
-  // Final validation
   const { valid, errors } = validateEntity("evidenceModels", updatedModel, db);
-  if (!valid) {
-    return res.status(400).json({ error: "Schema validation failed", details: errors });
-  }
+  if (!valid) return res.status(400).json({ error: "Schema validation failed", details: errors });
 
   db.evidenceModels[idx] = updatedModel;
   saveDB(db);
   res.json(updatedModel);
 });
-
 // ------------------------------
-// DELETE /api/evidenceModels/:id
+// DELETE /api/evidenceModels/:id (with cascade cleanup)
 // ------------------------------
 router.delete("/:id", (req, res) => {
   const { id } = req.params;
   const db = loadDB();
 
-  const before = db.evidenceModels.length || 0;
-  db.evidenceModels = (db.evidenceModels || []).filter((m) => m.id !== id);
-  if ((db.evidenceModels || []).length === before) {
-    return res.status(404).json({ error: "Evidence model not found" });
+  const before = (db.evidenceModels || []).length;
+  const model = (db.evidenceModels || []).find((m) => m.id === id);
+  if (!model) return res.status(404).json({ error: "Evidence model not found" });
+
+  // Cascade deletion strategy:
+  // 1. Remove tasks that reference this evidence model via taskModels or itemMappings
+  // 2. Remove sessions that reference those tasks
+  // 3. Remove the evidence model
+
+  // Find taskModels that reference this evidence model (taskModel.evidenceModelId)
+  const affectedTaskModelIds = (db.taskModels || [])
+    .filter((tm) => tm.evidenceModelId === id)
+    .map((tm) => tm.id);
+
+  // Find tasks that use those taskModels OR whose itemMappings reference observations in this model
+  const observationIds = new Set((model.observations || []).map((o) => o.id));
+
+  const affectedTaskIds = new Set();
+  for (const t of (db.tasks || [])) {
+    if (affectedTaskModelIds.includes(t.taskModelId)) {
+      affectedTaskIds.add(t.id);
+      continue;
+    }
+    // inspect itemMappings if present
+    if (t.itemMappings && Array.isArray(t.itemMappings)) {
+      for (const im of t.itemMappings) {
+        if (im.observationId && observationIds.has(im.observationId)) {
+          affectedTaskIds.add(t.id);
+          break;
+        }
+      }
+    }
   }
 
-  // Cascade: remove tasks using this model (tasks.taskModelId may reference task models; historically some task may hold evidenceModelId)
-  const removedTaskIds = (db.tasks || []).filter((t) => t.evidenceModelId === id).map((t) => t.id);
-  db.tasks = (db.tasks || []).filter((t) => t.evidenceModelId !== id);
+  // Delete sessions that reference any of the affectedTaskIds
+  if (affectedTaskIds.size > 0) {
+    db.sessions = (db.sessions || []).filter((s) => !((s.taskIds || []).some((tid) => affectedTaskIds.has(tid))));
+  }
 
-  // Cascade: remove sessions referencing removed tasks
-  db.sessions = (db.sessions || []).filter((s) => !((s.taskIds || []).some((tid) => removedTaskIds.includes(tid))));
+  // Delete the tasks
+  if (affectedTaskIds.size > 0) {
+    db.tasks = (db.tasks || []).filter((t) => !affectedTaskIds.has(t.id));
+  }
+
+  // Finally remove the evidence model itself
+  db.evidenceModels = (db.evidenceModels || []).filter((m) => m.id !== id);
 
   saveDB(db);
-  res.json({ success: true });
+  res.json({ success: true, removedTasks: Array.from(affectedTaskIds) });
 });
 
 export default router;

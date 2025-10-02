@@ -23,6 +23,12 @@ export default function EvidenceModelBuilder() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(model),
         });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`Failed to update: ${err.error || res.statusText}`);
+          return;
+        }
         const updated = await res.json();
         setModels(models.map((m) => (m.id === updated.id ? updated : m)));
         setSelectedModel(null);
@@ -33,6 +39,12 @@ export default function EvidenceModelBuilder() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(model),
         });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`Failed to create: ${err.error || res.statusText}`);
+          return;
+        }
         const created = await res.json();
         setModels([...models, created]);
         setSelectedModel(null);

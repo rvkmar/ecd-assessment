@@ -281,15 +281,29 @@ export function validateEntity(collection, obj, db = null) {
   if (collection === "evidenceModels") {
     const obsIds = new Set((obj.observations || []).map(o => o.id));
     const rubricMap = new Map();
-    for (const obs of obj.observations || []) {
-      if (obs.type === "rubric") {
-        if (!obs.rubric?.levels || obs.rubric.levels.length === 0) {
-          errors.push(`Observation ${obs.id} is type rubric but missing rubric.levels`);
-        } else {
-          rubricMap.set(obs.id, obs.rubric.levels);
+      for (const obs of obj.observations || []) {
+        if (obs.type === "rubric") {
+          const hasLevels = Array.isArray(obs.rubric?.levels) && obs.rubric.levels.length > 0;
+          const hasCriteria = Array.isArray(obs.rubric?.criteria) && obs.rubric.criteria.some(
+            c => Array.isArray(c.levels) && c.levels.length > 0
+          );
+
+          if (!hasLevels && !hasCriteria) {
+            errors.push(`Observation ${obs.id} is type rubric but missing rubric.levels or rubric.criteria`);
+          } else if (hasLevels) {
+            rubricMap.set(obs.id, obs.rubric.levels);
+          } else if (hasCriteria) {
+            // flatten criteria into levels for measurement model validation
+            const flattened = [];
+            for (const c of obs.rubric.criteria) {
+              for (const l of c.levels || []) {
+                if (l && l.name) flattened.push(l.name);
+              }
+            }
+            rubricMap.set(obs.id, flattened);
+          }
         }
       }
-    }
     const evidenceIds = new Set((obj.evidences || []).map(e => e.id));
     for (const c of obj.constructs || []) {
       if (!c.competencyId) {

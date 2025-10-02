@@ -25,7 +25,7 @@ export default function MeasurementModelEditor({ model, setModel, observations, 
   // Items that can have weights in sum/average models
   const weightItems = [
     ...observations.map((o) => ({ id: o.id, label: `Obs: ${o.text}` })),
-    ...rubrics.map((r) => ({ id: r.id, label: `Rubric: ${r.id}` })),
+    ...rubrics.map((r) => ({ id: r.id, label: `Rubric: ${r.name || r.id}` })),
   ];
 
   return (
