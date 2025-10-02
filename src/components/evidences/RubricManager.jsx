@@ -98,11 +98,39 @@ export default function RubricManager({ value = null, observations = [], onChang
           <p className="text-sm text-gray-600">Author rubrics at district level and link to observations (strict ECD).</p>
         </div>
 
-        <div className="text-right">
+        <div className="text-right space-y-2">
           <div className="text-xs text-gray-500">Preview / Export</div>
           <div className="mt-2 flex space-x-2">
             <button type="button" onClick={() => navigator.clipboard?.writeText(exportJSON())} className="px-2 py-1 border rounded">Copy JSON</button>
             {onSave && <button type="button" onClick={() => onSave(rubric)} className="px-2 py-1 bg-green-600 text-white rounded">Save</button>}
+          </div>
+          
+          {/* SOLO preset button */}
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRubric({
+                  ...rubric,
+                  name: "SOLO Rubric",
+                  description: "Structure of Observed Learning Outcomes",
+                  criteria: [{
+                    id: "crit_solo",
+                    name: "SOLO Levels",
+                    levels: [
+                      { id: "lvl0", name: "Prestructural", descriptor: "Irrelevant or no response", score: 0 },
+                      { id: "lvl1", name: "Unistructural", descriptor: "Mentions one relevant idea", score: 1 },
+                      { id: "lvl2", name: "Multistructural", descriptor: "Lists several relevant ideas but not connected", score: 2 },
+                      { id: "lvl3", name: "Relational", descriptor: "Integrates ideas into a logical explanation", score: 3 },
+                      { id: "lvl4", name: "Extended Abstract", descriptor: "Generalizes principle beyond given case", score: 4 }
+                    ]
+                  }]
+                });
+              }}
+              className="px-2 py-1 border rounded bg-purple-600 text-white"
+            >
+              Insert SOLO Levels
+            </button>
           </div>
         </div>
       </div>
