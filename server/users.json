@@ -1,0 +1,22 @@
+[
+  {
+    "username": "admin1",
+    "role": "admin",
+    "password": "$2b$10$tdWf4So2dCOR9EbVIu1q7uUPzltNex6ZoWIUFJsEC6SvhQO/p0cyi"
+  },
+  {
+    "username": "dist1",
+    "role": "district",
+    "password": "$2b$10$rr4epAEF0vGBu0ibBwUqTeP6HUwxABKJX3iSjThZr7A7vreJBI0.a"
+  },
+  {
+    "username": "teach1",
+    "role": "teacher",
+    "password": "$2b$10$Jmblaj5127bDxEenHWgOUulvfPfgOzefJgKkM6K3BdyCYTrygJ3em"
+  },
+  {
+    "username": "stud1",
+    "role": "student",
+    "password": "$2b$10$p1oQMGwXuBXhkrFBcfntJeo9E8RqsqPiF4tApcE8zfSMcWp9fvDEe"
+  }
+]
