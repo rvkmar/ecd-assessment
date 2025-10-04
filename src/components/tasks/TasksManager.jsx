@@ -24,13 +24,13 @@ export default function TasksManager({ notify }) {
         setTaskModels(tm || []);
         setQuestions(qs || []);
       })
-      .catch(() => notify?.("❌ Failed to load tasks/task models/questions"))
+      .catch(() => notify?.("❌ Failed to load activities/activity templates/questions"))
       .finally(() => setLoading(false));
   }, []);
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!selectedModelId) return notify?.("Select a task model");
+    if (!selectedModelId) return notify?.("Select an activity template");
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -40,28 +40,28 @@ export default function TasksManager({ notify }) {
           questionId: selectedQuestionId || null,
         }),
       });
-      if (!res.ok) throw new Error("Failed to create task");
+      if (!res.ok) throw new Error("Failed to create activity");
       const created = await res.json();
       setTasks([...tasks, created]);
       setSelectedModelId("");
       setSelectedQuestionId("");
-      notify?.("Task created");
+      notify?.("Activity created");
     } catch (err) {
       console.error(err);
-      notify?.("❌ Failed to create task");
+      notify?.("❌ Failed to create activity");
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this task?")) return;
+    if (!confirm("Delete this activity?")) return;
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete task");
+      if (!res.ok) throw new Error("Failed to delete activity");
       setTasks(tasks.filter((t) => t.id !== id));
-      notify?.("Task deleted");
+      notify?.("Activity deleted");
     } catch (err) {
       console.error(err);
-      notify?.("❌ Failed to delete task");
+      notify?.("❌ Failed to delete activity");
     }
   };
 
@@ -72,12 +72,12 @@ export default function TasksManager({ notify }) {
 
   return (
     <div className="p-4 space-y-4">
-      <h2 className="text-xl font-bold">Tasks</h2>
+      <h2 className="text-xl font-bold">Activities</h2>
 
       {/* Add new task */}
       <form onSubmit={handleAdd} className="space-y-2 p-3 border rounded bg-gray-50">
         <div>
-          <label className="block text-sm font-medium">Task Model</label>
+          <label className="block text-sm font-medium">Activity Template</label>
           <select
             className="border p-2 rounded w-full"
             value={selectedModelId}
@@ -105,7 +105,7 @@ export default function TasksManager({ notify }) {
         </div>
 
         <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
-          Create Task
+          Create Acvitity
         </button>
       </form>
 
@@ -131,7 +131,7 @@ export default function TasksManager({ notify }) {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-gray-500">No tasks defined yet</p>
+        <p className="text-sm text-gray-500">No activities defined yet</p>
       )}
     </div>
   );

@@ -27,7 +27,7 @@ export default function TaskModelBuilder({ notify }) {
         const updated = await res.json();
         setModels(models.map((m) => (m.id === updated.id ? updated : m)));
         setSelectedModel(null);
-        notify?.("Task model updated.");
+        notify?.("Activity template updated.");
       } else {
         // Create new model
         const res = await fetch("/api/taskModels", {
@@ -38,11 +38,11 @@ export default function TaskModelBuilder({ notify }) {
         const created = await res.json();
         setModels([...models, created]);
         setSelectedModel(null);
-        notify?.("Task model created.");
+        notify?.("Activity template created.");
       }
     } catch (err) {
-      console.error("Error saving task model", err);
-      notify?.("❌ Failed to save task model");
+      console.error("Error saving activity template", err);
+      notify?.("❌ Failed to save activity template");
     }
   };
 
@@ -53,16 +53,16 @@ export default function TaskModelBuilder({ notify }) {
       if (selectedModel?.id === id) {
         setSelectedModel(null);
       }
-      notify?.("Task model deleted.");
+      notify?.("Activity template deleted.");
     } catch (err) {
-      console.error("Error deleting task model", err);
-      notify?.("❌ Failed to delete task model");
+      console.error("Error deleting activity template", err);
+      notify?.("❌ Failed to delete activity template");
     }
   };
 
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold">Task Models</h2>
+      <h2 className="text-2xl font-bold">Activity Template</h2>
 
       {/* List of models */}
       <TaskModelList
@@ -93,7 +93,7 @@ export default function TaskModelBuilder({ notify }) {
           }
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
-          + New Task Model
+          + New Activity Template
         </button>
       )}
     </div>

@@ -9,7 +9,7 @@ export default function CompetencyForm({ form, setForm, models, competencies, ac
         value={form.modelId || activeModelId || ""}
         onChange={(e) => setForm((s) => ({ ...s, modelId: e.target.value }))}
       >
-        <option value="">Select model</option>
+        <option value="">Select competency framework</option>
         {models.map((m) => (
           <option key={m.id} value={m.id}>
             {m.name}
@@ -23,7 +23,7 @@ export default function CompetencyForm({ form, setForm, models, competencies, ac
         value={form.parentId || ""}
         onChange={(e) => setForm((s) => ({ ...s, parentId: e.target.value || null }))}
       >
-        <option value="">No parent (root competency)</option>
+        <option value="">No parent (root)</option>
         {competencies
           .filter((c) => c.modelId === (form.modelId || activeModelId))
           .map((c) => (
@@ -35,7 +35,7 @@ export default function CompetencyForm({ form, setForm, models, competencies, ac
 
       <input
         className="border p-2 w-full mb-2"
-        placeholder="Competency name"
+        placeholder="Competency / Skill name"
         value={form.name}
         onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
       />
@@ -52,7 +52,7 @@ export default function CompetencyForm({ form, setForm, models, competencies, ac
           onClick={onSave}
           className="px-3 py-1 bg-blue-500 text-white rounded"
         >
-          {form.id ? "Update" : "Add"}
+          {form.id ? "Update competency" : "Add competency"}
         </button>
         {form.id && (
           <button

@@ -84,7 +84,7 @@ export default function AnalyticsPanel() {
   }, [db]);
 
   return (
-    <Card title="Analytics by Competency">
+    <Card title="Analytics by Competency / Skill">
       {data.length === 0 ? (
         <p className="text-sm text-gray-600">No data available yet.</p>
       ) : (

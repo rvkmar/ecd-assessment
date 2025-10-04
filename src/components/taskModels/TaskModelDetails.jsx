@@ -47,7 +47,7 @@ export default function TaskModelDetails({ taskModel, onClose }) {
     <Modal
       isOpen={!!taskModel}
       onClose={onClose}
-      title={`Task Model: ${taskModel.name}`}
+      title={`Activity Template: ${taskModel.name}`}
       message=""
     >
       <Card>
@@ -74,7 +74,7 @@ export default function TaskModelDetails({ taskModel, onClose }) {
         </div>
 
         {/* Linked Evidence Models */}
-        <h4 className="mt-3 font-semibold">Linked Evidence Models</h4>
+        <h4 className="mt-3 font-semibold">Linked Evidence Rules</h4>
         {taskModel.evidenceModelIds?.length > 0 ? (
           <ul className="list-disc ml-5">
             {taskModel.evidenceModelIds.map((emId) => {
@@ -92,12 +92,12 @@ export default function TaskModelDetails({ taskModel, onClose }) {
         )}
 
         {/* Expected Observations */}
-        <h4 className="mt-3 font-semibold">Expected Observations</h4>
+        <h4 className="mt-3 font-semibold">Expected Indicators</h4>
         {taskModel.expectedObservations?.length > 0 ? (
           <ul className="list-disc ml-5">
             {taskModel.expectedObservations.map((eo, i) => (
               <li key={i}>
-                Obs:{" "}
+                Ind:{" "}
                 <span className="italic">
                   {getObservationDescription(eo.observationId)}
                 </span>{" "}
@@ -124,7 +124,7 @@ export default function TaskModelDetails({ taskModel, onClose }) {
           <ul className="list-disc ml-5">
             {taskModel.itemMappings.map((m, i) => (
               <li key={i}>
-                Obs: <code>{m.observationId}</code>, Ev:{" "}
+                Indicator: <code>{m.observationId}</code>, Ev:{" "}
                 <code>{m.evidenceId}</code> ↳ Item:{" "}
                 <span className="italic">{getQuestionText(m.itemId)}</span>{" "}
                 <span className="text-gray-500">({m.itemId})</span>

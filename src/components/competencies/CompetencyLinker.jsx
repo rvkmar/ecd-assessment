@@ -62,7 +62,7 @@ const CompetencyLinker = ({ models = [], competencies = [], links = [], saveAll,
       className="competency-linker"
       style={{ marginTop: "1rem", padding: "1rem", border: "1px solid #ccc", borderRadius: "8px" }}
     >
-      <h4 className="font-medium mb-3">Crosslink Competencies</h4>
+      <h4 className="font-medium mb-3">Crosslink Competencies / Skills</h4>
 
       {/* Source dropdown */}
       <select
@@ -98,7 +98,7 @@ const CompetencyLinker = ({ models = [], competencies = [], links = [], saveAll,
         disabled={isLinkDisabled}
         className="w-full mb-4 px-3 py-1 bg-blue-500 text-white rounded"
       >
-        Crosslink Competency
+        Crosslink Competency / Skill
       </button>
 
       {/* Existing links */}

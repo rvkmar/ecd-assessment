@@ -78,7 +78,7 @@ export default function RubricManager({ value = null, observations = [], onChang
 
   const validate = () => {
     if (!rubric.name || rubric.name.trim() === "") return "Rubric must have a name";
-    if (!rubric.observationId) return "Please link an observation";
+    if (!rubric.observationId) return "Please link an indicator";
     if (!Array.isArray(rubric.criteria) || rubric.criteria.length === 0) return "Add at least one criterion";
     for (const c of rubric.criteria) {
       if (!c.name || c.name.trim() === "") return "Each criterion must have a name";
@@ -95,7 +95,7 @@ export default function RubricManager({ value = null, observations = [], onChang
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-lg font-semibold">Rubric Editor</h3>
-          <p className="text-sm text-gray-600">Author rubrics at district level and link to observations (strict ECD).</p>
+          <p className="text-sm text-gray-600">Author rubrics at district level and link to indicators.</p>
         </div>
 
         <div className="text-right space-y-2">
@@ -143,9 +143,9 @@ export default function RubricManager({ value = null, observations = [], onChang
         </div>
 
         <div>
-          <label className="block font-medium">Linked Observation</label>
+          <label className="block font-medium">Linked Indicator</label>
           <select value={rubric.observationId} onChange={(e) => updateField('observationId', e.target.value)} disabled={readOnly} className="border p-2 rounded w-full">
-            <option value="">-- select observation --</option>
+            <option value="">-- select indicator --</option>
             {observations.map((o) => <option key={o.id} value={o.id}>{o.name || o.id}</option>)}
           </select>
         </div>
@@ -229,7 +229,7 @@ export default function RubricManager({ value = null, observations = [], onChang
           <h4 className="font-semibold">Preview</h4>
           <div className="mt-2 border rounded p-3 bg-white">
             <div className="text-sm font-medium">{rubric.name}</div>
-            <div className="text-xs text-gray-500">Linked observation: {observations.find(o => o.id === rubric.observationId)?.name || rubric.observationId}</div>
+            <div className="text-xs text-gray-500">Linked indicator: {observations.find(o => o.id === rubric.observationId)?.name || rubric.observationId}</div>
             <div className="mt-2 space-y-2">
               {rubric.criteria.map((c) => (
                 <div key={c.id} className="p-2 border rounded">

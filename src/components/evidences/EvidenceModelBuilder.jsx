@@ -50,7 +50,7 @@ export default function EvidenceModelBuilder() {
         setSelectedModel(null);
       }
     } catch (err) {
-      console.error("Error saving evidence model", err);
+      console.error("Error saving evidence rule", err);
     }
   };
 
@@ -62,13 +62,13 @@ export default function EvidenceModelBuilder() {
         setSelectedModel(null);
       }
     } catch (err) {
-      console.error("Error deleting evidence model", err);
+      console.error("Error deleting evidence rule", err);
     }
   };
 
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold">Evidence Models</h2>
+      <h2 className="text-2xl font-bold">Evidence Rules</h2>
 
       {/* List of models */}
       <EvidenceModelList
@@ -99,7 +99,7 @@ export default function EvidenceModelBuilder() {
           }
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
-          + New Evidence Model
+          + New Evidence Rule
         </button>
       )}
     </div>

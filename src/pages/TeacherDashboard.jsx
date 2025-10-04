@@ -44,7 +44,7 @@ export default function TeacherDashboard() {
           title="Teacher Dashboard"
           tabs={[
             { id: "questions", label: "QuestionBank", content: <QuestionBank /> },
-            { id: "tasks", label: "Tasks", content: <TasksManager /> },
+            { id: "activities", label: "Activities", content: <TasksManager /> },
             { id: "sessions", label: "Sessions", content: <SessionBuilder /> },
             { id: "analytics", label: "Analytics", content: <AnalyticsPanel /> },
           ]}

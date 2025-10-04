@@ -35,7 +35,7 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
   };
 
   if (!models || models.length === 0) {
-    return <p className="text-gray-500">No task models defined yet.</p>;
+    return <p className="text-gray-500">No activity templates defined yet.</p>;
   }
 
   return (
@@ -58,11 +58,11 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
                 Difficulty: <strong>{m.difficulty || "medium"}</strong>
               </span>
               <span>
-                Evidence Models:{" "}
+                Evidence Rules:{" "}
                 <strong>{m.evidenceModelIds?.length || 0}</strong>
               </span>
               <span>
-                Expected Observations:{" "}
+                Expected Indicators:{" "}
                 <strong>{m.expectedObservations?.length || 0}</strong>
               </span>
               <span>
@@ -73,7 +73,7 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
             {/* Linked evidence models */}
             {m.evidenceModelIds?.length > 0 && (
               <div className="mt-2">
-                <h4 className="text-sm font-medium">Linked Evidence Models:</h4>
+                <h4 className="text-sm font-medium">Linked Evidence Rules:</h4>
                 <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
                   {m.evidenceModelIds.map((id) => {
                     const name = getEvidenceModelName(id);
@@ -97,11 +97,11 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
             {/* Expected Observations */}
             {m.expectedObservations?.length > 0 && (
               <div className="mt-2">
-                <h4 className="text-sm font-medium">Expected Observations:</h4>
+                <h4 className="text-sm font-medium">Expected Indicators:</h4>
                 <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
                   {m.expectedObservations.map((eo, i) => (
                     <li key={i}>
-                      Obs: <code>{eo.observationId}</code>, Ev:{" "}
+                      Ind: <code>{eo.observationId}</code>, Ev:{" "}
                       <code>{eo.evidenceId}</code>
                     </li>
                   ))}
@@ -118,7 +118,7 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
                     const itemText = getQuestionText(map.itemId);
                     return (
                       <li key={i}>
-                        Obs: <code>{map.observationId}</code>, Ev:{" "}
+                        Ind: <code>{map.observationId}</code>, Ev:{" "}
                         <code>{map.evidenceId}</code> ↳ Item:{" "}
                         {itemText ? (
                           <>
@@ -179,7 +179,7 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
           setDeleteModal({ open: false, id: null, name: "" });
         }}
         title="Confirm Delete"
-        message={`Are you sure you want to delete task model "${deleteModal.name}"?`}
+        message={`Are you sure you want to delete activity template "${deleteModal.name}"?`}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
       />
     </div>

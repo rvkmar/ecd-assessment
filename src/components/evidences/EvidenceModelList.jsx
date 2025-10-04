@@ -42,7 +42,7 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
   };
 
   if (!models || models.length === 0) {
-    return <p className="text-gray-500">No evidence models defined yet.</p>;
+    return <p className="text-gray-500">No evidence rules defined yet.</p>;
   }
 
   return (
@@ -71,7 +71,7 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                   Constructs: <strong>{m.constructs?.length || 0}</strong>
                 </span>
                 <span>
-                  Observations: <strong>{m.observations?.length || 0}</strong>
+                  Indicators: <strong>{m.observations?.length || 0}</strong>
                 </span>
                 <span>
                   Rubrics: <strong>{m.rubrics?.length || 0}</strong>
@@ -110,7 +110,7 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
                             <ul className="list-circle list-inside ml-6 text-gray-600 space-y-1">
                               {linkedObs.map((o) => (
                                 <li key={o.id}>
-                                  Obs: {o.text || o.id} {" "}
+                                  Ind: {o.text || o.id} {" "}
                                   <span className="text-gray-500">[{o.type}]</span>
                                   {o.scoring?.method && (
                                     <span className="ml-2 text-xs text-purple-600">
@@ -184,7 +184,7 @@ export default function EvidenceModelList({ models, onEdit, onDelete }) {
           setDeleteModal({ open: false, id: null, name: "" });
         }}
         title="Confirm Delete"
-        message={`Are you sure you want to delete evidence model \"${deleteModal.name}\"?`}
+        message={`Are you sure you want to delete evidence rule \"${deleteModal.name}\"?`}
         confirmClass="bg-red-500 hover:bg-red-600 text-white"
       />
     </div>

@@ -65,46 +65,46 @@ export default function AdminPage() {
     <DashboardLayout
       title="Admin Dashboard"
       tabs={[
-        {
-          id: "competencies",
-          label: "Competencies",
-          content: (
-            <>
-              <Button className="mb-4">+ Add Competency Model</Button>
-              <PlaceholderTable columns={["ID", "Name", "Version", "Status", "Actions"]} />
-            </>
-          ),
-        },
-        {
-          id: "evidence",
-          label: "Evidence",
-          content: (
-            <>
-              <Button className="mb-4">+ Add Evidence Model</Button>
-              <PlaceholderTable columns={["ID", "Name", "Type", "Linked Competency", "Actions"]} />
-            </>
-          ),
-        },
-        {
-          id: "tasks",
-          label: "Tasks",
-          content: (
-            <>
-              <Button className="mb-4">+ Add Task Model</Button>
-              <PlaceholderTable columns={["ID", "Name", "Linked Evidence", "Difficulty", "Status", "Actions"]} />
-            </>
-          ),
-        },
-        {
-          id: "sessions",
-          label: "Sessions",
-          content: (
-            <>
-              <Button className="mb-4">+ Create Session</Button>
-              <PlaceholderTable columns={["Session ID", "Teacher", "Students", "Status", "Actions"]} />
-            </>
-          ),
-        },
+        // {
+        //   id: "competencies",
+        //   label: "Competencies",
+        //   content: (
+        //     <>
+        //       <Button className="mb-4">+ Add Competency Model</Button>
+        //       <PlaceholderTable columns={["ID", "Name", "Version", "Status", "Actions"]} />
+        //     </>
+        //   ),
+        // },
+        // {
+        //   id: "evidence",
+        //   label: "Evidence",
+        //   content: (
+        //     <>
+        //       <Button className="mb-4">+ Add Evidence Rule</Button>
+        //       <PlaceholderTable columns={["ID", "Name", "Type", "Linked Competency", "Actions"]} />
+        //     </>
+        //   ),
+        // },
+        // {
+        //   id: "tasks",
+        //   label: "Tasks",
+        //   content: (
+        //     <>
+        //       <Button className="mb-4">+ Add Activity Template</Button>
+        //       <PlaceholderTable columns={["ID", "Name", "Linked Evidence", "Difficulty", "Status", "Actions"]} />
+        //     </>
+        //   ),
+        // },
+        // {
+        //   id: "sessions",
+        //   label: "Sessions",
+        //   content: (
+        //     <>
+        //       <Button className="mb-4">+ Create Session</Button>
+        //       <PlaceholderTable columns={["Session ID", "Teacher", "Students", "Status", "Actions"]} />
+        //     </>
+        //   ),
+        // },
         {
           id: "users",
           label: "Users",
@@ -121,7 +121,21 @@ export default function AdminPage() {
         {
           id: "settings",
           label: "Settings",
-          content: <PlaceholderTable columns={["Setting", "Value", "Actions"]} />,
+          content: (
+            <div>
+              <Button
+                className="bg-red-600 text-white"
+                onClick={async () => {
+                  if (!confirm("This will delete ALL assessment data. Continue?")) return;
+                  await fetch("/api/admin/clear-all", { method: "POST" });
+                  toast.success("All data cleared.");
+                }}
+              >
+                Clear All Data
+              </Button>
+              <PlaceholderTable columns={["Setting", "Value", "Actions"]} />,
+            </div>
+          ),
         },
       ]}
     />

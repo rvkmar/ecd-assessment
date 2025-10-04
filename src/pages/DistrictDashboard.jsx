@@ -9,6 +9,7 @@ import QuestionBank from "../components/questions/QuestionBank";
 import CompetencyModelBuilder from "../components/competencies/CompetencyModelBuilder";
 import EvidenceModelBuilder from "../components/evidences/EvidenceModelBuilder";
 import TaskModelBuilder from "../components/taskModels/TaskModelBuilder";
+import TasksManager from "../components/tasks/TasksManager";
 import SessionBuilder from "../components/sessions/SessionBuilder";
 import AnalyticsPanel from "../components/AnalyticsPanel";
 
@@ -46,8 +47,9 @@ export default function DistrictDashboard() {
         tabs={[
           { id: "questions", label: "QuestionBank", content: <QuestionBank /> },
           { id: "competencies", label: "Competencies", content: <CompetencyModelBuilder /> },
-          { id: "evidence", label: "Evidence", content: <EvidenceModelBuilder /> },
-          { id: "tasks", label: "Tasks", content: <TaskModelBuilder /> },
+          { id: "evidence", label: "Evidences", content: <EvidenceModelBuilder /> },
+          { id: "tasks", label: "Activity Templates", content: <TaskModelBuilder /> },
+          { id: "activities", label: "Activities", content: <TasksManager /> },
           { id: "sessions", label: "Sessions", content: <SessionBuilder /> },
           { id: "analytics", label: "Analytics", content: <AnalyticsPanel /> },
         ]}

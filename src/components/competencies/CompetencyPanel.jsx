@@ -19,14 +19,14 @@ export default function CompetencyPanel({
     <div className="mb-4 mt-4 border p-3 rounded bg-gray-50">
       {/* ✅ Mode Selector */}
       <div className="flex items-center gap-3 mb-3">
-        <label className="text-sm font-medium text-gray-700">Select Mode:</label>
+        <label className="text-sm font-medium text-gray-700">Select:</label>
         <select
           className="border p-2 rounded"
           value={mode}
           onChange={(e) => setMode(e.target.value)}
         >
-          <option value="addUpdate">Add / Update Competency</option>
-          <option value="crosslink">Crosslink Competency</option>
+          <option value="addUpdate">Add / Update </option>
+          <option value="crosslink">Crosslink </option>
         </select>
       </div>
 

@@ -97,7 +97,7 @@ export default function TaskModelForm({ model, onSave, notify }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim()) return notify?.("Task model name required");
+    if (!name.trim()) return notify?.("Activity template name required");
     if (!description.trim()) return notify?.("Description required");
 
     const taskModel = {
@@ -120,12 +120,12 @@ export default function TaskModelForm({ model, onSave, notify }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Metadata */}
       <div>
-        <label className="block font-medium">Task Model Name</label>
+        <label className="block font-medium">Activity Template Name</label>
         <input
           className="border p-2 w-full rounded"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Task model name"
+          placeholder="Activity template name"
         />
       </div>
 
@@ -163,7 +163,7 @@ export default function TaskModelForm({ model, onSave, notify }) {
 
       {/* Evidence model selection (show name, store ID) */}
       <div>
-        <p className="font-medium text-sm">Link Evidence Models:</p>
+        <p className="font-medium text-sm">Link Evidence Rules:</p>
         {evidenceModels.length > 0 ? (
           evidenceModels.map((em) => (
             <label key={em.id} className="block text-sm">
@@ -176,27 +176,27 @@ export default function TaskModelForm({ model, onSave, notify }) {
             </label>
           ))
         ) : (
-          <p className="text-gray-500 text-sm">No evidence models available</p>
+          <p className="text-gray-500 text-sm">No evidence rules available</p>
         )}
       </div>
 
       {/* Expected observations */}
       {selectedEvidenceModels.length > 0 && (
         <div>
-          <p className="font-medium text-sm">Expected Observations</p>
+          <p className="font-medium text-sm">Expected Indicators</p>
           {selectedEvidenceModels.map((emId) => {
             const em = evidenceModels.find((em) => em.id === emId);
             return (
               <div key={emId} className="p-2 border rounded mt-2">
                 <p className="font-semibold">
-                  Evidence Model: {em?.name || emId}{" "}
+                  Evidence Rule: {em?.name || emId}{" "}
                   <span className="text-gray-400">({emId})</span>
                 </p>
                 <div className="flex space-x-2 mt-1">
                   <input
                     type="text"
                     className="border p-1 text-sm rounded flex-1"
-                    placeholder="Observation ID"
+                    placeholder="Indicator ID"
                     id={`obs-${emId}`}
                   />
                   <select
@@ -233,12 +233,12 @@ export default function TaskModelForm({ model, onSave, notify }) {
       {expectedObservations.length > 0 && (
         <div>
           <p className="font-medium text-sm">
-            Map Items to Observations/Evidence
+            Map Items to Indicators/Evidence
           </p>
           <ul className="list-disc ml-5 text-sm">
             {expectedObservations.map((eo, i) => (
               <li key={i}>
-                Obs: <code>{eo.observationId}</code>, Ev:{" "}
+                Ind: <code>{eo.observationId}</code>, Ev:{" "}
                 <code>{eo.evidenceId}</code>
                 <select
                   className="ml-2 border p-1 text-sm"
@@ -277,7 +277,7 @@ export default function TaskModelForm({ model, onSave, notify }) {
         type="submit"
         className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
       >
-        Save Task Model
+        Save Activity Template
       </button>
     </form>
   );

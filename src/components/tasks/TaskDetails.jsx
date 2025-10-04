@@ -84,7 +84,7 @@ export default function TaskDetails({ task, onClose }) {
     >
       <Card>
         <p>
-          <strong>Task Model:</strong>{" "}
+          <strong>Activity Template:</strong>{" "}
           {taskModel ? taskModel.name : task.taskModelId}
         </p>
         <p>
@@ -101,7 +101,7 @@ export default function TaskDetails({ task, onClose }) {
 
         {taskModel && (
           <>
-            <h4 className="mt-3 font-semibold">Task Model Details</h4>
+            <h4 className="mt-3 font-semibold">Activity Template Details</h4>
             <p>
               <strong>Description:</strong> {taskModel.description || "-"}
             </p>
@@ -125,12 +125,12 @@ export default function TaskDetails({ task, onClose }) {
           return (
             <div key={emId} className="mb-3">
               <p className="font-medium text-blue-600">
-                Evidence Model: {em ? em.name : emId}
+                Evidence Rule: {em ? em.name : emId}
               </p>
 
               {data.observations.length > 0 ? (
                 <div>
-                  <p className="font-medium">Observations:</p>
+                  <p className="font-medium">Indicators:</p>
                   <ul className="list-disc ml-5">
                     {data.observations.map((oid) => {
                       const mapping = (taskModel?.itemMappings || []).find(
@@ -159,7 +159,7 @@ export default function TaskDetails({ task, onClose }) {
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 ml-5">
-                  No observations captured
+                  No indicators captured
                 </p>
               )}
 

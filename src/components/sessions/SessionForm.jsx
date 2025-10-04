@@ -59,13 +59,13 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!studentId) return notify("Please select a student");
-    if (!Array.isArray(selectedTasks) || selectedTasks.length === 0) return notify("Please select at least one task");
+    if (!Array.isArray(selectedTasks) || selectedTasks.length === 0) return notify("Please select at least one activity");
 
     let nextTaskPolicy = {};
     try {
       nextTaskPolicy = JSON.parse(nextTaskPolicyText || "{}");
     } catch (err) {
-      return notify("Next task policy JSON is invalid: " + err.message);
+      return notify("Next activity policy JSON is invalid: " + err.message);
     }
 
     const payload = {
@@ -154,7 +154,7 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
       </div>
 
       <div>
-        <label className="block font-medium">Selection Strategy</label>
+        <label className="block font-medium">Selection Strategy / Assessment Policy</label>
         <select value={selectionStrategy} onChange={(e) => handleStrategyChange(e.target.value)} className="border p-2 rounded w-full">
           <option value="fixed">Fixed (sequential)</option>
           <option value="IRT">IRT (adaptive)</option>
@@ -165,7 +165,7 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
 
       {(selectionStrategy === "IRT" || selectionStrategy === "BayesianNetwork" || selectionStrategy === "custom") && (
         <div>
-          <label className="block font-medium">Next Task Policy (JSON)</label>
+          <label className="block font-medium">Next Activity Policy (JSON)</label>
           <textarea value={nextTaskPolicyText} onChange={(e) => setNextTaskPolicyText(e.target.value)} rows={6} className="border p-2 rounded w-full font-mono text-sm" />
           <p className="text-xs text-gray-400 mt-1">Provide policy configuration as JSON.</p>
         </div>

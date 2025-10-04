@@ -27,14 +27,14 @@ export default function CompetencyModelBuilder({ notify }) {
   );
 
   if (loading) {
-    return <div className="p-4 text-gray-500">Loading competency models...</div>;
+    return <div className="p-4 text-gray-500">Loading competencies...</div>;
   }
 
   // --- Save model ---
   const saveModel = () => {
     // console.log("[CompetencyModelBuilder] saveModel called", modelForm);
 
-    if (!modelForm.name.trim()) return notify("Enter model name");
+    if (!modelForm.name.trim()) return notify("Enter competency framework name");
     const isEdit = !!modelForm.id;
     const newModel = {
       ...modelForm,
@@ -52,14 +52,14 @@ export default function CompetencyModelBuilder({ notify }) {
 
     // console.log("[CompetencyModelBuilder] Updated models", updatedModels);
     saveAll(updatedModels, competencies, links);
-    notify(isEdit ? "Model updated" : "Model added");
+    notify(isEdit ? "Competency framework updated" : "Competency framework added");
   };
 
   // --- Save competency ---
   const saveCompetency = () => {
     // console.log("[CompetencyModelBuilder] saveCompetency called", compForm);
 
-    if (!compForm.name.trim()) return notify("Enter competency name");
+    if (!compForm.name.trim()) return notify("Enter competency / skill name");
     const isEdit = !!compForm.id;
     const newComp = {
       ...compForm,
@@ -106,7 +106,7 @@ export default function CompetencyModelBuilder({ notify }) {
 
       // console.log("[CompetencyModelBuilder] Remaining models", remainingModels);
       saveAll(remainingModels, remainingCompetencies, remainingLinks);
-      notify("Model removed");
+      notify("Competency framework removed");
     }
 
     if (modal.type === "competency") {
@@ -127,11 +127,11 @@ export default function CompetencyModelBuilder({ notify }) {
   };
 
   // --- Sync ---
-  const syncNow = () => {
-    // console.log("[CompetencyModelBuilder] Manual sync called");
-    saveAll(models, competencies, links);
-    notify("✅ Sync pushed to server (local state unchanged)");
-  };
+  // const syncNow = () => {
+  //   // console.log("[CompetencyModelBuilder] Manual sync called");
+  //   saveAll(models, competencies, links);
+  //   notify("✅ Sync pushed to server (local state unchanged)");
+  // };
 
   // --- Render views ---
   const renderView = () => {
@@ -149,9 +149,10 @@ export default function CompetencyModelBuilder({ notify }) {
   };
 
   return (
-    <Card title="Competency Models">
+    // user facing component name changed from Competency Models to Competency Framework
+    <Card title="Competency Framework">
       <div className="flex justify-between mb-3">
-        <h3>Models</h3>
+        <h3>Available Frameworks</h3>
         <div>
           {/* <button onClick={syncNow}>🔃</button> */}
           <select value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
@@ -169,7 +170,7 @@ export default function CompetencyModelBuilder({ notify }) {
 
           {/* ✅ Model List Panel with competency count badges */}
           <div className="mb-4 mt-4">
-            <h4 className="font-medium mb-2">Existing Models</h4>
+            <h4 className="font-medium mb-2">Total competencies / skills under framework</h4>
             <ul className="space-y-1 text-sm">
               {models.map((m) => (
                 <li key={m.id} className={`flex items-center gap-2 p-2 rounded ${m.id === activeModelId ? 'bg-green-50' : ''}`}>
@@ -183,7 +184,7 @@ export default function CompetencyModelBuilder({ notify }) {
                   <button onClick={() => setModal({ open: true, id: m.id, type: 'model' })} className="px-2 py-0.5 bg-red-500 text-white rounded text-xs">Remove</button>
                 </li>
               ))}
-              {models.length === 0 && <li className="text-gray-500">No models yet</li>}
+              {models.length === 0 && <li className="text-gray-500">No competency frameworks yet</li>}
             </ul>
           </div>
 

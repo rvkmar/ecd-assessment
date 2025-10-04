@@ -136,7 +136,7 @@ export default function QuestionBank({ notify }) {
         <option value="constructed">Constructed Response</option>
         <option value="mcq">Multiple Choice</option>
         <option value="open">Open Response</option>
-        <option value="observation">Observation based</option>
+        <option value="observation">Observation</option>
       </select>
 
       {type === "default" && (
@@ -188,7 +188,7 @@ export default function QuestionBank({ notify }) {
               onChange={(e) => setBnObservationId(e.target.value)}
             >
               <option value="">
-                Select Observation (from Evidence Models)
+                Select Indicator (from Evidence Rules)
               </option>
               {models.flatMap((m) =>
                 m.observations.map((o) => (
@@ -355,7 +355,7 @@ export default function QuestionBank({ notify }) {
           removeQuestion(idToRemove);
         }}
         title="Confirm Delete"
-        message="Remove this question? Linked tasks and sessions will be updated."
+        message="Remove this question? Linked activities and sessions will be updated."
       />
     </Card>
   );

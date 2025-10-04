@@ -42,7 +42,7 @@ export default function RubricEditor({ rubrics, setRubrics, observations }) {
             {/* Observation link */}
             <div>
               <label className="block text-sm font-medium">
-                Linked Observation
+                Linked Indicator
               </label>
               <select
                 className="w-full border rounded p-2"
@@ -51,7 +51,7 @@ export default function RubricEditor({ rubrics, setRubrics, observations }) {
                   updateRubric(r.id, { observationId: e.target.value })
                 }
               >
-                <option value="">Select observation</option>
+                <option value="">Select indicator</option>
                 {observations.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.text || o.id}

@@ -139,7 +139,7 @@ export default function EvidenceModelForm({ model, onSave }) {
         disabled={!name.trim()}
         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
       >
-        Save Evidence Model
+        Save Evidence Rule
       </button>
     </form>
   );

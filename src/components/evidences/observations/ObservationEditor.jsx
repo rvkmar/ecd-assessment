@@ -229,18 +229,18 @@ export default function ObservationEditor({ observations, setObservations, const
   return (
     <div className="p-4 border rounded-md space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Observations</h3>
+        <h3 className="text-lg font-semibold">Indicators</h3>
         <button
           type="button"
           onClick={addObservation}
           className="bg-green-600 text-white px-3 py-1 rounded"
         >
-          + Add Observation
+          + Add Indicator
         </button>
       </div>
 
       {observations.length === 0 && (
-        <p className="text-gray-500 text-sm">No observations defined yet.</p>
+        <p className="text-gray-500 text-sm">No indicators defined yet.</p>
       )}
 
       <ul className="space-y-3">
@@ -251,7 +251,7 @@ export default function ObservationEditor({ observations, setObservations, const
           >
             {/* ID */}
             <div>
-              <label className="block text-sm font-medium">Observation ID</label>
+              <label className="block text-sm font-medium">Indicator ID</label>
               <input
                 type="text"
                 value={o.id}

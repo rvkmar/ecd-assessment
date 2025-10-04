@@ -185,7 +185,7 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
       try {
         taskObj = await fetchJsonSafe(`/api/tasks/${tid}`);
       } catch (e) {
-        console.error("Failed to fetch task:", e);
+        console.error("Failed to fetch activity:", e);
         setTask(null);
         setTaskModel(null);
         setQuestion(null);
@@ -209,7 +209,7 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
         setQuestion(null);
       }
     } catch (e) {
-      console.error("Failed to load next task:", e);
+      console.error("Failed to load next activity:", e);
     } finally {
       setLoadingTask(false);
     }
@@ -395,7 +395,7 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
       </div>
 
       {loadingTask ? (
-        <div>Loading next task...</div>
+        <div>Loading next activity...</div>
       ) : noMoreTasks ? (
         <div className="p-4 border rounded bg-green-50">
           <p className="font-medium">No more tasks available.</p>
@@ -426,7 +426,7 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
       ) : task ? (
         <div className="p-4 border rounded bg-white">
           <div className="mb-3">
-            <strong>Task:</strong>{" "}
+            <strong>Activity:</strong>{" "}
             <span className="text-sm text-gray-600">{task.id}</span>
           </div>
 
@@ -440,7 +440,7 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                 <strong>Evidence:</strong> {taskModel.evidenceId || "(unknown)"}
               </div>
               <div>
-                <strong>Task Model:</strong>{" "}
+                <strong>Activity Template:</strong>{" "}
                 {taskModel.name || taskModel.id || "(unnamed)"}
               </div>
             </div>
@@ -571,12 +571,12 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
             </form>
           ) : (
             <div className="text-sm text-gray-600">
-              No linked question for this task. You may capture evidence manually.
+              No linked question for this activity. You may capture evidence manually.
             </div>
           )}
         </div>
       ) : (
-        <div>No task loaded.</div>
+        <div>No activity loaded.</div>
       )}
 
       {/* Responses timeline */}
@@ -594,7 +594,7 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
               return (
                 <li key={i}>
                   <div>
-                    <strong>Task:</strong> {r.taskId}{" "}
+                    <strong>Activity:</strong> {r.taskId}{" "}
                     <span className="text-gray-500">
                       at {new Date(r.timestamp).toLocaleString()}
                     </span>
