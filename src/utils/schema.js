@@ -170,7 +170,7 @@ export const schema = {
       description: { type: "string" },
       type: {
         type: "string",
-        enum: ["fixed", "IRT", "BayesianNetwork"], // extendable if needed
+        enum: ["fixed", "IRT", "BayesianNetwork", "MarkovChain"], // extendable if needed
       },
       config: { type: "object" }, // e.g. { maxEntropy: true }
       createdAt: { type: "string", format: "date-time" },

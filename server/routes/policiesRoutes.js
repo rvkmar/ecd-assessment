@@ -13,11 +13,20 @@ router.get("/", (req, res) => {
   res.json(db.policies || []);
 });
 
+// middleware for role check
+function requireAdmin(req, res, next) {
+  const role = req.user?.role; // assuming JWT middleware sets req.user
+  if (role !== "admin") {
+    return res.status(403).json({ error: "Only admin can manage policies" });
+  }
+  next();
+}
+
 // ------------------------------
 // POST /api/policies
 // ------------------------------
 // body: { name, description, type, config }
-router.post("/", (req, res) => {
+router.post("/", requireAdmin, (req, res) => {
   const db = loadDB();
   const { name, description, type, config } = req.body;
 
@@ -51,7 +60,7 @@ router.post("/", (req, res) => {
 // ------------------------------
 // PUT /api/policies/:id
 // ------------------------------
-router.put("/:id", (req, res) => {
+router.put("/:id", requireAdmin, (req, res) => {
   const db = loadDB();
   const idx = (db.policies || []).findIndex((p) => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "Policy not found" });
@@ -76,7 +85,7 @@ router.put("/:id", (req, res) => {
 // ------------------------------
 // DELETE /api/policies/:id
 // ------------------------------
-router.delete("/:id", (req, res) => {
+router.delete("/:id", requireAdmin, (req, res) => {
   const db = loadDB();
   const before = db.policies?.length || 0;
   db.policies = (db.policies || []).filter((p) => p.id !== req.params.id);

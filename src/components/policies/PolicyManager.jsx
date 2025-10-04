@@ -9,6 +9,7 @@ export function PolicyManager() {
   const [loading, setLoading] = useState(true);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editPolicy, setEditPolicy] = useState(null);
+  const role = localStorage.getItem("role");
 
   useEffect(() => {
     fetchPolicies();
@@ -56,7 +57,9 @@ export function PolicyManager() {
     <Card className="p-4">
       <CardHeader className="flex justify-between items-center">
         <CardTitle>Policies</CardTitle>
-        <Button onClick={handleCreate}>+ New Policy</Button>
+        {role === "admin" && (
+          <Button onClick={handleCreate}>+ New Policy</Button>
+          )}
       </CardHeader>
 
       <CardContent>
@@ -85,16 +88,22 @@ export function PolicyManager() {
                     {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "-"}
                   </TableCell>
                   <TableCell className="space-x-2">
-                    <Button size="sm" onClick={() => handleEdit(p)}>
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => deletePolicy(p.id)}
-                    >
-                      Delete
-                    </Button>
+                      {role === "admin" ? (
+                        <>
+                      <Button size="sm" onClick={() => handleEdit(p)}>
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => deletePolicy(p.id)}
+                      >
+                        Delete
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-gray-400 text-sm">Read-only</span>
+                      )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -104,11 +113,13 @@ export function PolicyManager() {
       </CardContent>
 
       {showBuilder && (
-        <PolicyBuilder
-          policy={editPolicy}
-          onCancel={() => setShowBuilder(false)}
-          onSaved={handleSaved}
-        />
+        role === "admin" && (
+          <PolicyBuilder
+            policy={editPolicy}
+            onCancel={() => setShowBuilder(false)}
+            onSaved={handleSaved}
+          />
+        )
       )}
     </Card>
   );

@@ -17,6 +17,22 @@ export default function SessionReport({ sessionId, onClose }) {
   const [learnerFeedback, setLearnerFeedback] = useState(null);
   const [teacherReport, setTeacherReport] = useState(null);
   const [tab, setTab] = useState("learner");
+  
+  const [policies, setPolicies] = useState([]);
+
+  // fetch policies so we can resolve names
+  useEffect(() => {
+    fetch("/api/policies")
+      .then((r) => r.json())
+      .then((data) => setPolicies(data || []))
+      .catch(() => setPolicies([]));
+  }, []);
+
+  const getPolicyName = (policyId) => {
+    if (!policyId) return null;
+    const p = (policies || []).find((pol) => pol.id === policyId);
+    return p ? p.name : policyId;
+  };
 
   useEffect(() => {
     if (!sessionId) return;
@@ -114,7 +130,14 @@ export default function SessionReport({ sessionId, onClose }) {
       {tab === "teacher" && teacherReport && (
         <div className="space-y-3">
           <h3 className="font-semibold">Teacher Report</h3>
-          <p className="text-gray-700">Strategy: {teacherReport.strategy}</p>
+            <p className="text-gray-700">
+            Strategy: {teacherReport.strategy}
+              {teacherReport.nextTaskPolicy?.policyId && (
+                <span className="ml-2 text-sm text-gray-600">
+                  (Policy: {getPolicyName(teacherReport.nextTaskPolicy.policyId)})
+                </span>
+              )}
+            </p>
           {teacherReport.studentName && (
             <p className="text-gray-700">Student: {teacherReport.studentName}</p>
           )}

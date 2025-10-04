@@ -75,6 +75,7 @@ export function PolicyBuilder({ policy, onCancel, onSaved }) {
               <option value="fixed">Fixed</option>
               <option value="IRT">IRT</option>
               <option value="BayesianNetwork">Bayesian Network</option>
+              <option value="MarkovChain">Markov Chain</option>
             </select>
           </div>
 

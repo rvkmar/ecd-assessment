@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { apiFetch } from "../api/apiClient";
 import DashboardLayout from "../components/ui/DashboardLayout";
+import { PolicyManager } from "../components/policies/PolicyManager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,15 @@ export default function AdminPage() {
                 <Button onClick={() => navigate("/teachers")}>Manage Teachers</Button>
               </div>
               <PlaceholderTable columns={["User ID", "Name", "Role", "District/Class", "Actions"]} />
+            </div>
+          ),
+        },
+        {
+          id: "policies",
+          label: "Policies",
+          content: (
+            <div>
+              <PolicyManager />
             </div>
           ),
         },

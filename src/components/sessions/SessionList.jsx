@@ -15,6 +15,7 @@ import Modal from "../ui/Modal";
 export default function SessionList({
   sessions = [],
   students = [],
+  policies = [],
   onPlay = () => {},
   onPause = () => {},
   onResume = () => {},
@@ -28,6 +29,12 @@ export default function SessionList({
   const getStudentName = (id) => {
     const s = (students || []).find((st) => st.id === id);
     return s ? s.name : id || "(unassigned)";
+  };
+
+  const getPolicyName = (policyId) => {
+    if (!policyId) return null;
+    const p = (policies || []).find((pol) => pol.id === policyId);
+    return p ? p.name : policyId;
   };
 
   const openDelete = (id) => setDeleteModal({ open: true, id });
@@ -121,6 +128,11 @@ export default function SessionList({
               </div>
               <div>
                 Strategy: <strong>{s.selectionStrategy || "fixed"}</strong>
+                {s.nextTaskPolicy?.policyId && (
+                  <span className="ml-2 text-xs text-gray-600">
+                    (Policy: {getPolicyName(s.nextTaskPolicy.policyId)})
+                  </span>
+                )}
               </div>
               <div>
                 Tasks: <strong>{(s.taskIds || []).length}</strong> &nbsp;|&nbsp;

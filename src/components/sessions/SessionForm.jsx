@@ -13,16 +13,26 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
   const [studentId, setStudentId] = useState(model.studentId || "");
   const [selectedTasks, setSelectedTasks] = useState(model.taskIds || []);
   const [selectionStrategy, setSelectionStrategy] = useState(model.selectionStrategy || "fixed");
-  const [nextTaskPolicyText, setNextTaskPolicyText] = useState(
-    model.nextTaskPolicy ? JSON.stringify(model.nextTaskPolicy, null, 2) : "{}"
-  );
+  const [policies, setPolicies] = useState([]);
+  const [policyId, setPolicyId] = useState(model.nextTaskPolicy?.policyId || "");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setStudentId(model.studentId || "");
     setSelectedTasks(model.taskIds || []);
     setSelectionStrategy(model.selectionStrategy || "fixed");
-    setNextTaskPolicyText(model.nextTaskPolicy ? JSON.stringify(model.nextTaskPolicy, null, 2) : "{}");
+    setPolicyId(model.nextTaskPolicy?.policyId || "");
+  }, [model]);
+
+  // fetch available policies from admin
+  useEffect(() => {
+    fetch("/api/policies")
+      .then((r) => r.json())
+      .then((data) => setPolicies(data || []))
+      .catch((err) => {
+        console.error("Failed to fetch policies", err);
+        setPolicies([]);
+      });
   }, [model]);
 
   const toggleTask = (taskId) => {
@@ -45,15 +55,8 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
 
   const handleStrategyChange = (val) => {
     setSelectionStrategy(val);
-    if (val === "fixed") {
-      setNextTaskPolicyText("{}");
-    } else if (val === "IRT") {
-      setNextTaskPolicyText(JSON.stringify({ irt: { initialTheta: 0, maxStdErr: 0.5 } }, null, 2));
-    } else if (val === "BayesianNetwork") {
-      setNextTaskPolicyText(JSON.stringify({ bn: { entropyThreshold: 0.2 } }, null, 2));
-    } else if (val === "custom") {
-      setNextTaskPolicyText(JSON.stringify({ custom: { rule: "define here" } }, null, 2));
-    }
+    // clear selected policy if switching
+    setPolicyId("");
   };
 
   const handleSubmit = (e) => {
@@ -61,19 +64,12 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
     if (!studentId) return notify("Please select a student");
     if (!Array.isArray(selectedTasks) || selectedTasks.length === 0) return notify("Please select at least one activity");
 
-    let nextTaskPolicy = {};
-    try {
-      nextTaskPolicy = JSON.parse(nextTaskPolicyText || "{}");
-    } catch (err) {
-      return notify("Next activity policy JSON is invalid: " + err.message);
-    }
-
     const payload = {
       id: model.id,
       studentId,
       taskIds: selectedTasks,
       selectionStrategy,
-      nextTaskPolicy,
+      nextTaskPolicy: policyId ? { policyId } : {},
     };
 
     setBusy(true);
@@ -154,20 +150,39 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
       </div>
 
       <div>
-        <label className="block font-medium">Selection Strategy / Assessment Policy</label>
-        <select value={selectionStrategy} onChange={(e) => handleStrategyChange(e.target.value)} className="border p-2 rounded w-full">
+        <label className="block font-medium">Activity Selection Strategy</label>
+        <select
+          value={selectionStrategy}
+          onChange={(e) => handleStrategyChange(e.target.value)}
+          className="border p-2 rounded w-full"
+        >
           <option value="fixed">Fixed (sequential)</option>
           <option value="IRT">IRT (adaptive)</option>
           <option value="BayesianNetwork">Bayesian Network (adaptive)</option>
-          <option value="custom">Custom</option>
+          <option value="MarkovChain">Markov Chain (adaptive)</option>
         </select>
       </div>
 
-      {(selectionStrategy === "IRT" || selectionStrategy === "BayesianNetwork" || selectionStrategy === "custom") && (
+      {selectionStrategy !== "fixed" && (
         <div>
-          <label className="block font-medium">Next Activity Policy (JSON)</label>
-          <textarea value={nextTaskPolicyText} onChange={(e) => setNextTaskPolicyText(e.target.value)} rows={6} className="border p-2 rounded w-full font-mono text-sm" />
-          <p className="text-xs text-gray-400 mt-1">Provide policy configuration as JSON.</p>
+          <label className="block font-medium">Select Assessment Policy</label>
+          <select
+            value={policyId}
+            onChange={(e) => setPolicyId(e.target.value)}
+            className="border p-2 rounded w-full"
+          >
+            <option value="">-- Select from Admin-defined policies --</option>
+            {policies
+              .filter((p) => p.type === selectionStrategy)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.type})
+                </option>
+              ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">
+            Only Admin can add or modify policies.
+          </p>
         </div>
       )}
 

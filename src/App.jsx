@@ -26,6 +26,7 @@ import SessionBuilder from "./components/sessions/SessionBuilder";
 import SessionPlayer from "./components/sessions/SessionPlayer";
 import AnalyticsPanel from "./components/AnalyticsPanel";
 
+import Footer from "./components/ui/Footer";
 import Toast from "./components/ui/Toast";
 import NavBar from "./components/ui/NavBar";
 
@@ -105,6 +106,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
+        <Footer />
       </AuthProvider>
     </Router>
   );

@@ -35,6 +35,22 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
   const [showResumedBanner, setShowResumedBanner] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
+  
+  // policies cache to resolve policy name
+  const [policies, setPolicies] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/policies")
+      .then((r) => r.json())
+      .then((data) => setPolicies(data || []))
+      .catch(() => setPolicies([]));
+  }, []);
+
+  const getPolicyName = (policyId) => {
+    if (!policyId) return null;
+    const p = (policies || []).find((pol) => pol.id === policyId);
+    return p ? p.name : policyId;
+  };
 
   // keep a ref to avoid stale closures in async helpers
   const sessionIdRef = useRef(sessionId);
@@ -371,9 +387,21 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     <div className="p-6 space-y-4">
       {banner}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Session Player: {sessionId}</h2>
-        <div className="text-sm text-gray-600">
-          Student: {session?.studentId || "(unassigned)"}
+        <div>
+          <h2 className="text-2xl font-bold">Session Player: {sessionId}</h2>
+          <div className="text-sm text-gray-600 mt-1">
+            Student: {session && session.studentId ? session.studentId : "(unassigned)"}
+          </div>
+          {session?.selectionStrategy && (
+            <div className="text-sm text-gray-600">
+              Strategy: {session.selectionStrategy}
+              {session?.nextTaskPolicy?.policyId && (
+                <span className="ml-2 text-xs text-gray-500">
+                  (Policy: {getPolicyName(session.nextTaskPolicy.policyId)})
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
