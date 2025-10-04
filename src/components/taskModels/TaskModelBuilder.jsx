@@ -74,7 +74,12 @@ export default function TaskModelBuilder({ notify }) {
       {/* Form for creating/editing */}
       {selectedModel && (
         <div className="p-4 border rounded-md bg-gray-50">
-          <TaskModelForm model={selectedModel} onSave={handleSave} notify={notify} />
+          <TaskModelForm
+            model={selectedModel}
+            onSave={handleSave}
+            onCancel={() => setSelectedModel(null)}
+            notify={notify}
+          />
         </div>
       )}
 

@@ -5,7 +5,7 @@ import ObservationEditor from "./observations/ObservationEditor";
 import RubricManager from "./RubricManager";
 import MeasurementModelEditor from "./MeasurementModelEditor";
 
-export default function EvidenceModelForm({ model, onSave }) {
+export default function EvidenceModelForm({ model, onSave, onCancel }) {
   const [name, setName] = useState(model?.name || "");
   const [description, setDescription] = useState(model?.description || "");
   const [evidences, setEvidences] = useState(model?.evidences || []);
@@ -134,13 +134,21 @@ export default function EvidenceModelForm({ model, onSave }) {
       />
 
       {/* Save */}
-      <button
-        type="submit"
-        disabled={!name.trim()}
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-      >
-        Save Evidence Rule
-      </button>
+      <div className="flex justify-end space-x-2">
+        <button
+          type="button"
+          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Save Evidence Rule
+        </button>
+      </div>
     </form>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import EvidenceModelList from "./EvidenceModelList";
 import EvidenceModelForm from "./EvidenceModelForm";
 
-export default function EvidenceModelBuilder() {
+export default function EvidenceModelBuilder({ notify }) {
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState(null);
 
@@ -80,7 +80,12 @@ export default function EvidenceModelBuilder() {
       {/* Form for creating/editing */}
       {selectedModel && (
         <div className="p-4 border rounded-md bg-gray-50">
-          <EvidenceModelForm model={selectedModel} onSave={handleSave} />
+          <EvidenceModelForm
+            model={selectedModel}
+            onSave={handleSave}
+            onCancel={() => setSelectedModel(null)}
+            notify={notify}
+            />
         </div>
       )}
 

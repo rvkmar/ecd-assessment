@@ -1,7 +1,7 @@
 // src/components/taskModels/TaskModelForm.jsx
 import React, { useState, useEffect } from "react";
 
-export default function TaskModelForm({ model, onSave, notify }) {
+export default function TaskModelForm({ model, onSave, onCancel, notify }) {
   const [name, setName] = useState(model?.name || "");
   const [description, setDescription] = useState(model?.description || "");
   const [actions, setActions] = useState(model?.actions?.join(", ") || "");
@@ -104,9 +104,7 @@ export default function TaskModelForm({ model, onSave, notify }) {
       ...model,
       name,
       description,
-      actions: actions
-        ? actions.split(",").map((a) => a.trim())
-        : [],
+      actions: Array.isArray(actions) ? actions : [],
       difficulty,
       evidenceModelIds: selectedEvidenceModels,
       expectedObservations,
@@ -140,12 +138,25 @@ export default function TaskModelForm({ model, onSave, notify }) {
       </div>
 
       <div>
-        <label className="block font-medium">Actions (comma-separated)</label>
-        <input
-          className="border p-2 w-full rounded"
+        <label className="block font-medium">Actions </label>
+        <select
+          multiple
+          className="border p-1 w-full rounded"
           value={actions}
-          onChange={(e) => setActions(e.target.value)}
-        />
+          onChange={(e) =>
+            setActions([...e.target.selectedOptions].map((o) => o.value))
+          }
+        >
+          <option value="attempt_question">Answer a Question</option>
+          <option value="open_response">Write an Open Response</option>
+          <option value="simulation">Complete a Simulation</option>
+          <option value="discussion">Join a Discussion</option>
+          <option value="project_work">Work on a Project</option>
+          <option value="upload_artifact">Upload a File/Artifact</option>
+          <option value="performance">Perform a Task</option>
+          <option value="behavior">Behavior Observation</option>
+        </select>
+
       </div>
 
       <div>
@@ -193,12 +204,17 @@ export default function TaskModelForm({ model, onSave, notify }) {
                   <span className="text-gray-400">({emId})</span>
                 </p>
                 <div className="flex space-x-2 mt-1">
-                  <input
-                    type="text"
+                  <select
                     className="border p-1 text-sm rounded flex-1"
-                    placeholder="Indicator ID"
                     id={`obs-${emId}`}
-                  />
+                  >
+                    <option value="">Select indicator</option>
+                    {em?.observations?.map((obs) => (
+                      <option key={obs.id} value={obs.id}>
+                        {obs.description || obs.text || obs.id} ({obs.id})
+                      </option>
+                    ))}
+                  </select>
                   <select
                     className="border p-1 text-sm rounded flex-1"
                     id={`ev-${emId}`}
@@ -273,12 +289,21 @@ export default function TaskModelForm({ model, onSave, notify }) {
         </div>
       )}
 
-      <button
-        type="submit"
-        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-      >
-        Save Activity Template
-      </button>
+      <div className="flex justify-end space-x-2">
+        <button
+          type="button"
+          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Save Activity Template
+        </button>
+      </div>
     </form>
   );
 }
