@@ -83,7 +83,7 @@ export default function TasksManager({ notify }) {
             value={selectedModelId}
             onChange={(e) => setSelectedModelId(e.target.value)}
           >
-            <option value="">-- choose model --</option>
+            <option value="">Select a activity template</option>
             {taskModels.map((tm) => (
               <option key={tm.id} value={tm.id}>{tm.name || tm.id}</option>
             ))}
@@ -97,7 +97,7 @@ export default function TasksManager({ notify }) {
             value={selectedQuestionId}
             onChange={(e) => setSelectedQuestionId(e.target.value)}
           >
-            <option value="">-- none --</option>
+            <option value="">None</option>
             {questions.map((q) => (
               <option key={q.id} value={q.id}>{q.stem ? q.stem.slice(0, 40) : q.id}</option>
             ))}

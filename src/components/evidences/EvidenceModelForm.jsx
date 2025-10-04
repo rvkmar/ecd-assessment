@@ -45,7 +45,7 @@ export default function EvidenceModelForm({ model, onSave, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Metadata */}
       <div>
-        <label className="block font-medium">Model Name</label>
+        <label className="block font-medium">Evidence Rule Name</label>
         <input
           type="text"
           value={name}

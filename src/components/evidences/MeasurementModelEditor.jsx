@@ -104,7 +104,7 @@ export default function MeasurementModelEditor({ model, setModel, observations, 
           <h4 className="font-medium mt-3">Weights</h4>
           {((observations || []).length === 0 && rubricRows.length === 0) ? (
             <p className="text-gray-500 text-sm">
-              Define observations and/or rubrics first.
+              Define indicators and/or rubrics first.
             </p>
           ) : (
             <table className="min-w-full border-collapse border mt-2 text-sm">
