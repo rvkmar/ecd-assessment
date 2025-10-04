@@ -114,6 +114,13 @@ export const schema = {
     questionId: 'string',        // optional: if instantiated from a question bank
     generatedEvidenceIds: 'array', // evidence actually captured during delivery
     generatedObservationIds: 'array', // which observations were triggered
+    
+    // ---- Scheduling (NEW)
+    // Optional: availability window / deadline for this task instance.
+    // If endTime is present and session is still in-progress when endTime passes,
+    // the backend auto-finish logic may mark the containing session as submitted.
+    startTime: 'date',    // when task is available
+    endTime: 'date',      // deadline for auto-finish
 
     createdAt: 'date',
     updatedAt: 'date',
@@ -155,9 +162,17 @@ export const schema = {
     selectionStrategy: 'string',     // "fixed" | "IRT" | "BayesianNetwork" | "custom"
     nextTaskPolicy: 'object',        // config for adaptive task selection
 
-    // Lifecycle
-    isCompleted: 'boolean',
+    // Lifecycle (ENHANCED)
+    // status: "in_progress" | "submitted" | "reviewed" | "reopened"
+    // finishedAt: timestamp when student or system finished the session
+    // autoFinished: true if system finished the session (deadline hit), false if student/teacher finished
+    // reviewedAt: when teacher finalized review (if applicable)
+    status: 'string',
+    isCompleted: 'boolean', // legacy boolean retained for backward compatibility — kept in sync with status
     startedAt: 'date',
+    finishedAt: 'date',
+    autoFinished: 'boolean',
+    reviewedAt: 'date',
     updatedAt: 'date',
   },
 

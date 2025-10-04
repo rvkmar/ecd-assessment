@@ -31,6 +31,10 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
   const [textAnswer, setTextAnswer] = useState("");
   const [selectedRubricLevel, setSelectedRubricLevel] = useState(null);
 
+  // deadline / countdown UI
+  const [deadline, setDeadline] = useState(null); // Date object or null
+  const [countdownMs, setCountdownMs] = useState(null); // ms remaining or null
+
   // Banners / messages / locks
   const [showResumedBanner, setShowResumedBanner] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -105,6 +109,21 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     return taskModelObj.itemMappings.find((m) => m.itemId === questionId) || null;
   }
 
+  // ----- helper: compute session-level deadline (prefers session.endTime, else max(task.endTime)) -----
+  function computeSessionDeadline(sess) {
+    if (!sess) return null;
+    if (sess.endTime) {
+      const d = new Date(sess.endTime);
+      if (!isNaN(d.getTime())) return d;
+    }
+    // use enriched tasks (if present) to find latest endTime
+    const taskEndTimes = (sess.tasks || [])
+      .map((t) => (t && t.endTime ? new Date(t.endTime) : null))
+      .filter((d) => d && !isNaN(d.getTime()));
+    if (taskEndTimes.length === 0) return null;
+    return new Date(Math.max(...taskEndTimes.map((d) => d.getTime())));
+  }
+
   // ----- initial load: session + evidenceModels -----
   useEffect(() => {
     if (!sessionId) return;
@@ -164,6 +183,49 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     setTextAnswer("");
     setSelectedRubricLevel(null);
   }, [session]);
+
+  
+  // ----- when session or its tasks change, compute deadline and start countdown -----
+  useEffect(() => {
+    let iv = null;
+    if (!session) {
+      setDeadline(null);
+      setCountdownMs(null);
+      return;
+    }
+
+    const d = computeSessionDeadline(session);
+    setDeadline(d);
+
+    // update countdown every 1s if deadline present and session appears in-progress
+    function updateCountdown() {
+      if (!d) {
+        setCountdownMs(null);
+        return;
+      }
+      const now = new Date();
+      const ms = d.getTime() - now.getTime();
+      setCountdownMs(ms > 0 ? ms : 0);
+      // if time passed, trigger a refresh so UI picks up server-side auto-finish quickly
+      if (ms <= 0) {
+        // fetch updated session once
+        (async () => {
+          try {
+            const s = await fetchJsonSafe(`/api/sessions/${sessionIdRef.current}`);
+            setSession(s);
+          } catch (e) {
+            // ignore refresh failures
+          }
+        })();
+      }
+    }
+
+    updateCountdown();
+    if (d) iv = setInterval(updateCountdown, 1000);
+    return () => {
+      if (iv) clearInterval(iv);
+    };
+  }, [session?.tasks, session?.endTime, session?.status, sessionIdRef.current]);
 
   // ----- show resumed banner briefly when status flips to in-progress -----
   useEffect(() => {
@@ -363,7 +425,33 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
 
   // ----- render banners -----
   let banner = null;
-  if (session?.status === "paused") {
+  // If autoFinished by backend, show auto-finished banner
+  if (session?.autoFinished) {
+    banner = (
+      <div className="mb-4 p-3 rounded bg-yellow-50 text-yellow-800 border border-yellow-200">
+        ⚠️ This session was <strong>auto-finished</strong> by the system
+        {session?.finishedAt ? ` at ${new Date(session.finishedAt).toLocaleString()}` : "."}
+        <div className="text-xs text-gray-500 mt-1">Teacher can review submitted responses.</div>
+      </div>
+    );
+  } else if (countdownMs !== null && countdownMs > 0 && (session?.status === "in-progress" || session?.status === "in-progress" || session?.status === "in_progress")) {
+    // show countdown when a deadline exists and is still in-progress
+    function formatMs(ms) {
+      const total = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+    banner = (
+      <div className="mb-4 p-3 rounded bg-blue-50 text-blue-800 border border-blue-100">
+        ⏱ Time remaining: <strong>{formatMs(countdownMs)}</strong>
+        {deadline && <div className="text-xs text-gray-500 mt-1">Deadline: {deadline.toLocaleString()}</div>}
+      </div>
+    );
+  } else if (session?.status === "paused") {
     banner = (
       <div className="mb-4 p-3 rounded bg-orange-100 text-orange-800 border border-orange-300">
         ⚠️ This session has been <strong>paused</strong> by your teacher.
@@ -484,21 +572,32 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
               {/* MCQ */}
               {question.type === "mcq" && (
                 <div>
-                  {(question.options || []).map((opt) => (
-                    <label
-                      key={opt.id}
-                      className="block p-2 border rounded my-1"
-                    >
-                      <input
-                        type="radio"
-                        name="mcq"
-                        value={opt.id}
-                        checked={selectedOptionId === opt.id}
-                        onChange={() => setSelectedOptionId(opt.id)}
-                      />{" "}
-                      <span className="ml-2">{opt.text}</span>
-                    </label>
-                  ))}
+                {(question.options || []).map((opt) => (
+                      <label
+                        key={opt.id}
+                        className="block p-2 border rounded my-1"
+                      >
+                        <input
+                          type="radio"
+                          name="mcq"
+                          value={opt.id}
+                          checked={selectedOptionId === opt.id}
+                          onChange={() => setSelectedOptionId(opt.id)}
+                          disabled={
+                            // session is editable only when in-progress and not autoFinished/isCompleted
+                            !(
+                              session &&
+                              (session.status === "in-progress" ||
+                                session.status === "in_progress" ||
+                                session.status === undefined) &&
+                              !session.autoFinished &&
+                              !session.isCompleted
+                            ) || submitting
+                          }
+                        />{" "}
+                        <span className="ml-2">{opt.text}</span>
+                      </label>
+                    ))}
                 </div>
               )}
 
@@ -517,6 +616,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                           className="border p-2 rounded w-full"
                           value={selectedRubricLevel || ""}
                           onChange={(e) => setSelectedRubricLevel(e.target.value)}
+                          disabled={
+                            !(
+                              session &&
+                              (session.status === "in-progress" ||
+                                session.status === "in_progress" ||
+                                session.status === undefined) &&
+                              !session.autoFinished &&
+                              !session.isCompleted
+                            )
+                          }
                         >
                           <option value="">Select rubric level</option>
                           {levels.map((lvl, i) => (
@@ -533,6 +642,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                         placeholder="Enter rubric level or comment"
                         value={textAnswer}
                         onChange={(e) => setTextAnswer(e.target.value)}
+                        disabled={
+                          !(
+                            session &&
+                            (session.status === "in-progress" ||
+                              session.status === "in_progress" ||
+                              session.status === undefined) &&
+                            !session.autoFinished &&
+                            !session.isCompleted
+                          )
+                        }
                       />
                     );
                   })()}
@@ -548,6 +667,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                     className="w-full border p-2 rounded"
                     value={textAnswer}
                     onChange={(e) => setTextAnswer(e.target.value)}
+                    disabled={
+                      !(
+                        session &&
+                        (session.status === "in-progress" ||
+                          session.status === "in_progress" ||
+                          session.status === undefined) &&
+                        !session.autoFinished &&
+                        !session.isCompleted
+                      )
+                    }
                   />
                 </div>
               )}
@@ -560,6 +689,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                     className="border p-2 rounded w-full"
                     value={textAnswer}
                     onChange={(e) => setTextAnswer(e.target.value)}
+                    disabled={
+                      !(
+                        session &&
+                        (session.status === "in-progress" ||
+                          session.status === "in_progress" ||
+                          session.status === undefined) &&
+                        !session.autoFinished &&
+                        !session.isCompleted
+                      )
+                    }
                   />
                 </div>
               )}
@@ -567,7 +706,17 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
               <div className="flex items-center space-x-2">
                 <button
                   type="submit"
-                  disabled={submitting || session?.status === "paused"}
+                  disabled={
+                    submitting ||
+                    !(
+                      session &&
+                      (session.status === "in-progress" ||
+                        session.status === "in_progress" ||
+                        session.status === undefined) &&
+                      !session.autoFinished &&
+                      !session.isCompleted
+                    )
+                  }
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
                   Submit Answer
@@ -575,7 +724,16 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                 <button
                   type="button"
                   onClick={loadNextTask}
-                  disabled={session?.status === "paused"}
+                  disabled={
+                    !(
+                      session &&
+                      (session.status === "in-progress" ||
+                        session.status === "in_progress" ||
+                        session.status === undefined) &&
+                      !session.autoFinished &&
+                      !session.isCompleted
+                    )
+                  }
                   className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
                 >
                   Skip
@@ -584,7 +742,17 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
                   <button
                     type="button"
                     onClick={() => setFinishModalOpen(true)}
-                    disabled={session?.status === "paused" || finishing}
+                    disabled={
+                      finishing ||
+                      !(
+                        session &&
+                        (session.status === "in-progress" ||
+                          session.status === "in_progress" ||
+                          session.status === undefined) &&
+                        !session.autoFinished &&
+                        !session.isCompleted
+                      )
+                    }
                     className="px-3 py-1 bg-red-500 text-white rounded disabled:opacity-50"
                   >
                     {finishing ? "Finishing..." : "Finish Session"}
