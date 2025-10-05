@@ -72,6 +72,16 @@ export default function App() {
                     <Route path="manage-tasks" element={<TasksManager />} />
                     <Route path="sessions/build" element={<SessionBuilder />} />
                     <Route path="sessions/play" element={<SessionPlayer />} />
+
+                    {/* ✅ District review route (same player in teacher mode) */}
+                    <Route
+                      path="sessions/:sessionId/review"
+                      element={
+                        <ProtectedRoute expectedRole="district">
+                          <SessionPlayer mode="teacher" />
+                        </ProtectedRoute>
+                      }
+                    />                    
                     <Route path="analytics" element={<AnalyticsPanel />} />
                 </Routes>
                 </ProtectedRoute>
@@ -88,6 +98,16 @@ export default function App() {
                     <Route path="tasks" element={<TasksManager />} />
                     <Route path="sessions/build" element={<SessionBuilder />} />
                     <Route path="sessions/play" element={<SessionPlayer />} />
+
+                    {/* Secure teacher review route (mode='teacher') */}
+                    <Route
+                      path="sessions/:sessionId/review"
+                      element={
+                        <ProtectedRoute expectedRole="teacher">
+                          <SessionPlayer mode="teacher" />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route path="analytics" element={<AnalyticsPanel />} />
                 </Routes>
                 </ProtectedRoute>

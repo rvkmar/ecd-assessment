@@ -101,10 +101,15 @@ export default function SessionList({
           <div className="w-3/4">
             <div className="flex items-baseline justify-between">
               <h3 className="text-lg font-semibold">{s.id}</h3>
+              {/* Status badge with extended lifecycle support */}
               <span
                 className={`text-xs px-2 py-1 rounded ${
-                  s.status === "completed"
-                    ? "bg-green-100 text-green-800"
+                  s.status === "reviewed"
+                    ? "bg-green-200 text-green-900"
+                    : s.autoFinished
+                    ? "bg-yellow-100 text-yellow-800"
+                    : s.status === "submitted" || s.isCompleted
+                    ? "bg-blue-100 text-blue-800"
                     : s.status === "paused"
                     ? "bg-orange-100 text-orange-800"
                     : s.status === "archived"
@@ -112,13 +117,17 @@ export default function SessionList({
                     : "bg-yellow-100 text-yellow-800"
                 }`}
               >
-                {s.status === "completed"
-                  ? "Completed"
+                {s.status === "reviewed"
+                  ? "Reviewed"
+                  : s.autoFinished
+                  ? "Auto-finished"
+                  : s.status === "submitted" || s.isCompleted
+                  ? "Submitted"
                   : s.status === "paused"
                   ? "Paused"
                   : s.status === "archived"
                   ? "Archived"
-                  : "In progress"}
+                  : "In Progress"}
               </span>
             </div>
 
@@ -169,6 +178,7 @@ export default function SessionList({
               </>
             )}
 
+            {/* Allow Resume for paused sessions */}
             {s.status === "paused" && (
               <button
                 onClick={() => onResume(s.id)}
@@ -178,6 +188,27 @@ export default function SessionList({
               </button>
             )}
 
+            {/* When submitted or auto-finished, allow teacher review */}
+            {(s.status === "submitted" || s.autoFinished) && (
+              <>
+                {window.location.pathname.includes("/district/") ? (
+                  <a
+                    href={`/district/sessions/${s.id}/review`}
+                    className="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600"
+                  >
+                    Review
+                  </a>
+                ) : (
+                  <a
+                    href={`/teacher/sessions/${s.id}/review`}
+                    className="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600"
+                  >
+                    Review
+                  </a>
+                )}
+              </>         
+            )}
+        
             {s.status === "completed" && (
               <button
                 onClick={() => onViewReport(s.id)}
@@ -187,6 +218,16 @@ export default function SessionList({
               </button>
             )}
 
+            {/* Reviewed sessions also get a report button */}
+            {s.status === "reviewed" && (
+              <button
+                onClick={() => onViewReport(s.id)}
+                className="bg-indigo-500 text-white px-3 py-1 rounded hover:bg-indigo-600"
+              >
+                Report
+              </button>
+            )}
+        
             {/* Always allow archive */}
             {s.status !== "archived" && (
               <button

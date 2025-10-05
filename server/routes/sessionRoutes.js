@@ -438,6 +438,26 @@ router.post("/:id/finish", (req, res) => {
 });
 
 // ------------------------------
+// POST /api/sessions/:id/review
+// ------------------------------
+router.post("/:id/review", (req, res) => {
+  const { id } = req.params;
+  const db = loadDB();
+  if (!db.sessions) db.sessions = [];
+  const idx = db.sessions.findIndex((s) => s.id === id);
+  if (idx === -1) return res.status(404).json({ error: "Session not found" });
+
+  const session = db.sessions[idx];
+  session.status = "reviewed";
+  session.isCompleted = true;
+  session.reviewedAt = new Date().toISOString();
+  session.updatedAt = new Date().toISOString();
+
+  saveDB(db);
+  res.json(session);
+});
+
+// ------------------------------
 // POST /api/sessions/:id/archive
 // ------------------------------
 router.post("/:id/archive", (req, res) => {

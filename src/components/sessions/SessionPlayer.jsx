@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import Modal from "../ui/Modal";
 
+import { useNavigate } from "react-router-dom";
 // SessionPlayer.jsx
 // Runtime delivery component for a session.
 // Refactor chunk 1/5:
@@ -8,7 +9,11 @@ import Modal from "../ui/Modal";
 //  - sessionId derivation and initial session+evidenceModels load
 
 
-export default function SessionPlayer({ sessionId: propSessionId, onFinished }) {
+export default function SessionPlayer({
+  sessionId: propSessionId,
+  onFinished,
+  mode = "student", // "student" | "teacher"
+}) {
   // ----- session identification -----
   const [sessionId, setSessionId] = useState(propSessionId || null);
 
@@ -19,6 +24,9 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
   const [taskModel, setTaskModel] = useState(null); // enriched taskModel for the current task
   const [question, setQuestion] = useState(null);
   const [evidenceModels, setEvidenceModels] = useState([]);
+  
+  // ----- shared stimulus / parent task support -----
+  const [parentTaskModel, setParentTaskModel] = useState(null);
 
   // ----- UI state -----
   const [loading, setLoading] = useState(true);
@@ -72,6 +80,12 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
       // ignore quietly
     }
   }, [propSessionId]);
+
+  // ----- teacher review mode indicator -----
+  const isTeacher = mode === "teacher";
+
+  // navigation hook for redirect after review finalization
+  const navigate = useNavigate();
 
   // ----- helper: fetch JSON safely -----
   async function fetchJsonSafe(url) {
@@ -274,6 +288,24 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
       const enrichedTask = await enrichTaskWithModel(taskObj);
       setTask(enrichedTask);
       setTaskModel(enrichedTask.taskModel || null);
+      
+      // if composite, load its parent stimulus model once
+      if (enrichedTask?.taskModel?.subTaskIds?.length > 0) {
+        // This task itself defines sub-tasks — treat its description as stimulus
+        setParentTaskModel(enrichedTask.taskModel);
+      } else if (enrichedTask?.taskModel?.parentTaskId) {
+        // If parentTaskId defined (optional future use), fetch it
+        try {
+          const parentTm = await fetchJsonSafe(`/api/taskModels/${enrichedTask.taskModel.parentTaskId}`);
+          setParentTaskModel(parentTm);
+        } catch (e) {
+          console.warn("No parent taskModel found", e);
+          setParentTaskModel(null);
+        }
+      } else {
+        // If not composite, clear
+        setParentTaskModel(null);
+      }
 
       // fetch question if linked
       if (enrichedTask?.questionId) {
@@ -385,6 +417,34 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
     }
   }
 
+  // ----- teacher: finalize review -----
+  async function handleFinalizeReview() {
+    if (!sessionIdRef.current) return;
+    if (!confirm("Finalize teacher review? This will mark the session as reviewed.")) return;
+    try {
+      const res = await fetch(`/api/sessions/${sessionIdRef.current}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewer: "teacher", timestamp: new Date().toISOString() }),
+      });
+      if (!res.ok) throw new Error("Failed to finalize review");
+      const updated = await res.json();
+      setSession(updated);
+      alert("Review finalized successfully.");
+      // ✅ Navigate back to Teacher or District Dashboard → specifically Sessions tab
+      const rolePath =
+        window.location.pathname.includes("/district/")
+          ? "/district#sessions"
+          : "/teacher#sessions";
+      setTimeout(() => {
+        navigate(rolePath, { replace: true });
+      }, 500);
+    } catch (e) {
+      console.error(e);
+      alert("Error finalizing review: " + e.message);
+    }
+  }
+
   // ----- finish session -----
   async function handleFinish() {
     if (!confirm("Finish this session?")) return;
@@ -473,6 +533,20 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
 
   return (
     <div className="p-6 space-y-4">
+      {isTeacher && (
+        <div className="mb-3 p-3 rounded bg-purple-50 text-purple-800 border border-purple-200 shadow-sm">
+          🔍 You are reviewing this session as:{" "}
+          <strong>
+            {window.location.pathname.includes("/district/")
+              ? "District Officer"
+              : "Teacher"}
+          </strong>
+          <div className="text-xs text-gray-600 mt-1">
+            You can view all responses and assign rubric levels before finalizing.
+          </div>
+        </div>
+      )}
+
       {banner}
       <div className="flex items-center justify-between">
         <div>
@@ -541,6 +615,23 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
         </div>
       ) : task ? (
         <div className="p-4 border rounded bg-white">
+          {/* Sticky shared stimulus area for composite parent tasks */}
+          {parentTaskModel && (
+            <div className="sticky top-0 z-10 bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 shadow-sm">
+              <h4 className="font-semibold text-yellow-800">
+                Shared Stimulus
+              </h4>
+              {parentTaskModel.description ? (
+                <p className="text-sm text-gray-800 mt-1 whitespace-pre-line">
+                  {parentTaskModel.description}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  (No stimulus text available)
+                </p>
+              )}
+            </div>
+          )}
           <div className="mb-3">
             <strong>Activity:</strong>{" "}
             <span className="text-sm text-gray-600">{task.id}</span>
@@ -704,60 +795,74 @@ export default function SessionPlayer({ sessionId: propSessionId, onFinished }) 
               )}
 
               <div className="flex items-center space-x-2">
-                <button
-                  type="submit"
-                  disabled={
-                    submitting ||
-                    !(
-                      session &&
-                      (session.status === "in-progress" ||
-                        session.status === "in_progress" ||
-                        session.status === undefined) &&
-                      !session.autoFinished &&
-                      !session.isCompleted
-                    )
-                  }
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Submit Answer
-                </button>
-                <button
-                  type="button"
-                  onClick={loadNextTask}
-                  disabled={
-                    !(
-                      session &&
-                      (session.status === "in-progress" ||
-                        session.status === "in_progress" ||
-                        session.status === undefined) &&
-                      !session.autoFinished &&
-                      !session.isCompleted
-                    )
-                  }
-                  className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
-                >
-                  Skip
-                </button>
-                {session?.status !== "completed" && (
+                {/* Student vs Teacher controls */}
+                {!isTeacher ? (
+                  <>
+                    <button
+                      type="submit"
+                      disabled={
+                        submitting ||
+                        !(
+                          session &&
+                          (session.status === "in-progress" ||
+                            session.status === "in_progress" ||
+                            session.status === undefined) &&
+                          !session.autoFinished &&
+                          !session.isCompleted
+                        )
+                      }
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Submit Answer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadNextTask}
+                      disabled={
+                        !(
+                          session &&
+                          (session.status === "in-progress" ||
+                            session.status === "in_progress" ||
+                            session.status === undefined) &&
+                          !session.autoFinished &&
+                          !session.isCompleted
+                        )
+                      }
+                      className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
+                    >
+                      Skip
+                    </button>
+                    {session?.status !== "completed" && (
+                      <button
+                        type="button"
+                        onClick={() => setFinishModalOpen(true)}
+                        disabled={
+                          finishing ||
+                          !(
+                            session &&
+                            (session.status === "in-progress" ||
+                              session.status === "in_progress" ||
+                              session.status === undefined) &&
+                            !session.autoFinished &&
+                            !session.isCompleted
+                          )
+                        }
+                        className="px-3 py-1 bg-red-500 text-white rounded disabled:opacity-50"
+                      >
+                        {finishing ? "Finishing..." : "Finish Session"}
+                      </button>
+                    )}
+                  </>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setFinishModalOpen(true)}
-                    disabled={
-                      finishing ||
-                      !(
-                        session &&
-                        (session.status === "in-progress" ||
-                          session.status === "in_progress" ||
-                          session.status === undefined) &&
-                        !session.autoFinished &&
-                        !session.isCompleted
-                      )
-                    }
-                    className="px-3 py-1 bg-red-500 text-white rounded disabled:opacity-50"
+                    onClick={handleFinalizeReview}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                   >
-                    {finishing ? "Finishing..." : "Finish Session"}
+                    ✅ Finalize Review
                   </button>
                 )}
+
                 {session?.status === "completed" && (
                   <div className="px-3 py-1 bg-green-500 text-white rounded inline-block">
                     ✅ Session Completed
