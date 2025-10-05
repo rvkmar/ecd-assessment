@@ -53,6 +53,19 @@ export default function EvidenceModelBuilder({ notify }) {
       console.error("Error saving evidence rule", err);
     }
   };
+  
+  // 🔹 Normalize linkedTaskModelIds before sending to backend just in case
+  const sanitizeModel = (model) => {
+    const observations = (model.observations || []).map((o) => ({
+      ...o,
+      linkedTaskModelIds: Array.isArray(o.linkedTaskModelIds)
+        ? o.linkedTaskModelIds
+        : [],
+    }));
+    return { ...model, observations };
+  };
+
+  const handleSaveSanitized = (model) => handleSave(sanitizeModel(model));
 
   const handleDelete = async (id) => {
     try {
@@ -82,7 +95,7 @@ export default function EvidenceModelBuilder({ notify }) {
         <div className="p-4 border rounded-md bg-gray-50">
           <EvidenceModelForm
             model={selectedModel}
-            onSave={handleSave}
+            onSave={handleSaveSanitized}
             onCancel={() => setSelectedModel(null)}
             notify={notify}
             />

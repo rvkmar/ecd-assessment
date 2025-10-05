@@ -29,13 +29,21 @@ export default function EvidenceModelForm({ model, onSave, onCancel }) {
   // On save → package data in strict ECD schema
   const handleSubmit = (e) => {
     e.preventDefault();
+    // 🔹 Ensure every observation uses linkedTaskModelIds (no legacy question refs)
+    const cleanObservations = (observations || []).map((o) => ({
+      ...o,
+      linkedTaskModelIds: Array.isArray(o.linkedTaskModelIds)
+        ? o.linkedTaskModelIds
+        : [],
+    }));
+
     onSave({
       ...(model.id ? { id: model.id } : {}),
       name: name.trim(),
       description: description.trim(),
       evidences,
       constructs,
-      observations,
+      observations: cleanObservations,
       rubrics: normalizeRubrics(rubrics),
       measurementModel,
     });
@@ -80,6 +88,9 @@ export default function EvidenceModelForm({ model, onSave, onCancel }) {
         setObservations={setObservations}
         constructs={constructs}
       />
+      <p className="text-xs text-gray-500 ml-1">
+        Each indicator now links one or more <strong>Task Models</strong> that operationalize this evidence.
+      </p>
 
       {/* Rubrics */}
       <div className="p-4 border rounded-md space-y-3">

@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import Spinner from "../components/ui/Spinner";
 import toast from "react-hot-toast";
 
+import QuestionDashboard from "@/components/questions/QuestionDashboard";
+
 // Reusable placeholder table
 function PlaceholderTable({ columns }) {
   return (
@@ -106,6 +108,11 @@ export default function AdminPage() {
         //     </>
         //   ),
         // },
+        {
+          id: "questions",
+          label: "Questions",
+          content: <QuestionDashboard />,
+        },
         {
           id: "users",
           label: "Users",

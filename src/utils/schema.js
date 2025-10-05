@@ -5,19 +5,54 @@ export const schema = {
   // 🔹 Question Bank
   questions: {
     id: 'string',
-    type: 'string',            // mcq, constructed, open, rubric
-    stem: 'string',
-    options: 'array',          // [{id, text}]
-    correctOptionId: 'string',
-    metadata: 'object',
 
-    // Psychometric params (for IRT)
-    // a: 'number',               // discrimination
-    // b: 'number',               // difficulty
-    // c: 'number',               // guessing (optional, 3PL)
+    // Question Type & Core Content
+    type: 'string',             // "mcq", "msq", "open", "numeric", "equation", "image", "audio", "video", "reading", "data", "rubric", "ordering", "matching"
+    stem: 'string',             // prompt (supports Markdown + LaTeX)
+    options: 'array',           // [{ id, text, image?, isCorrect? }]
+    correctOptionIds: 'array',  // supports single or multiple answers
 
-    // For Bayesian Network mapping
-    bnObservationId: 'string',
+    // Media (optional)
+    media: {
+      image: 'string',          // image or diagram
+      audio: 'string',          // listening/audio file
+      video: 'string',          // video-based questions
+      dataset: 'string',        // for data-handling (CSV/JSON)
+    },
+
+    // Reading comprehension linkage
+    passageId: 'string',        // reference to shared passage
+    subQuestionIds: 'array',    // linked sub-items (for comprehension sets)
+
+    // Math / Equation
+    equation: 'string',         // LaTeX string (optional)
+    rubricId: 'string',         // rubric for open-response scoring
+
+    // Workflow / Lifecycle
+    status: 'string',           // "new" | "review" | "active" | "retired"
+
+    // 🔹 Metadata (curriculum + cognitive)
+    metadata: {
+      subject: 'string',        // "Mathematics", "Science"
+      grade: 'string',          // "Class 6", "Grade 8"
+      topic: 'string',          // curriculum topic
+      tags: 'array',            // ["fractions", "data", "visual"]
+      difficulty: 'string',     // "easy" | "medium" | "hard"
+      bloomLevel: 'string',     // "Remember" | "Understand" | "Apply" | "Analyze" | "Evaluate" | "Create"
+      soloLevel: 'string',      // "Prestructural" | "Unistructural" | "Multistructural" | "Relational" | "Extended Abstract"
+      expectedAnswer: 'string', // expected text for open-response
+      source: 'string',         // author or imported source
+      interactionType: 'string',// "drag-drop", "hotspot", "table-analysis"
+      dataSchema: 'object',     // structure of dataset/graph questions
+    },
+
+    // Optional ECD/psychometric mapping
+    bnObservationId: 'string',  // Bayesian network node link
+    irtParams: {
+      a: 'number',              // discrimination
+      b: 'number',              // difficulty
+      c: 'number',              // guessing (optional)
+    },
 
     createdAt: 'date',
     updatedAt: 'date',
@@ -42,8 +77,8 @@ export const schema = {
 
     // Evidence Rules
     evidences: 'array',     // [{ id, description }]
-    constructs: 'array',    // [{ id, competencyId, evidenceId }]
-    observations: 'array',  // [{ 
+    constructs: 'array',    // [{ id, name, description, competencyId, evidenceId }]
+    observations: 'array',  // [{
     // Observations structure
     // Each observation is evidence of student performance
     // {
@@ -51,7 +86,7 @@ export const schema = {
     // text: string,
     // type: "selected_response" | "open_response" | "rubric" | "numeric" | "performance" | "artifact" | "behavior" | "other",
     // constructId: string,
-    // linkedQuestionIds: string[],
+    // linkedTaskModelIds: "array",
     // rubric?: object,
     // scoring?: {
     // method: "binary" | "partial" | "rubric" | "numeric" | "likert" | "performance" | "custom",
@@ -99,7 +134,7 @@ export const schema = {
     difficulty: 'string',          // easy | medium | hard
 
     // Link task to evidence rules explicitly
-    expectedObservations: 'array', // [{ observationId, evidenceId }]
+    expectedObservations: 'array', // [{ observationId, evidenceId, taskModelId }]
 
     itemMappings: 'array', // [{ itemId, observationId, evidenceId }]
 
@@ -292,23 +327,72 @@ export function validateEntity(collection, obj, db = null) {
 
   // 🔹 Existing conditional validations
   if (collection === "questions") {
-    if (["constructed", "open"].includes(obj.type)) {
-      if (!obj.metadata?.expectedAnswer || obj.metadata.expectedAnswer.trim() === "") {
-        errors.push("expectedAnswer is required in metadata for constructed/open questions");
+    // 🔹 Required core fields
+    if (!obj.type) errors.push("type is required");
+    if (!obj.stem) errors.push("stem is required");
+
+    // 🔹 Type-specific validations
+    if (["mcq", "msq"].includes(obj.type)) {
+      if (!obj.options || obj.options.length === 0) {
+        errors.push("MCQ/MSQ questions must include at least one option");
+      }
+      if (!obj.correctOptionIds || obj.correctOptionIds.length === 0) {
+        errors.push("MCQ/MSQ questions must include at least one correctOptionId");
       }
     }
 
-    if (obj.type === "mcq") {
-      if (!obj.options || obj.options.length === 0) {
-        errors.push("MCQ questions must have at least one option");
+    if (["open", "numeric"].includes(obj.type)) {
+      if (!obj.metadata?.expectedAnswer || obj.metadata.expectedAnswer.trim() === "") {
+        errors.push("Open/Numeric questions must include metadata.expectedAnswer");
       }
-      if (!obj.correctOptionId) {
-        errors.push("MCQ questions must have a correctOptionId");
-      } else if (!obj.options.some(o => o.id === obj.correctOptionId)) {
-        errors.push("correctOptionId must match one of the option IDs");
+    }
+
+    if (obj.type === "reading") {
+      if (!obj.passageId) errors.push("Reading comprehension questions require passageId");
+      if (!obj.subQuestionIds || obj.subQuestionIds.length === 0) {
+        errors.push("Reading comprehension questions must reference subQuestionIds");
+      }
+    }
+
+    if (obj.type === "image" && !obj.media?.image) {
+      errors.push("Image-based questions must include media.image");
+    }
+
+    if (obj.type === "data" && !obj.media?.dataset) {
+      errors.push("Data-handling questions must include media.dataset");
+    }
+
+    // 🔹 Lifecycle status validation
+    if (obj.status && !["new", "review", "active", "retired"].includes(obj.status)) {
+      errors.push("status must be one of: new, review, active, retired");
+    }
+
+    // 🔹 Metadata validation
+    if (obj.metadata) {
+      const m = obj.metadata;
+
+      if (!m.subject) errors.push("metadata.subject is required");
+      if (!m.grade) errors.push("metadata.grade is required");
+      if (!m.topic) errors.push("metadata.topic is required");
+
+      if (m.difficulty && !["easy", "medium", "hard"].includes(m.difficulty)) {
+        errors.push("metadata.difficulty must be easy, medium, or hard");
+      }
+
+      if (m.bloomLevel && ![
+        "Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"
+      ].includes(m.bloomLevel)) {
+        errors.push("metadata.bloomLevel must be a valid Bloom level");
+      }
+
+      if (m.soloLevel && ![
+        "Prestructural", "Unistructural", "Multistructural", "Relational", "Extended Abstract"
+      ].includes(m.soloLevel)) {
+        errors.push("metadata.soloLevel must be a valid SOLO level");
       }
     }
   }
+
 
   if (collection === "evidenceModels") {
     const obsIds = new Set((obj.observations || []).map(o => o.id));

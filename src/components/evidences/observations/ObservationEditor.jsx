@@ -12,14 +12,13 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
  * - rubrics (for rubric-type scoring)
  */
 export default function ObservationEditor({ observations, setObservations, constructs, rubrics }) {
-  const [questions, setQuestions] = useState([]);
-  const [search, setSearch] = useState("");
+  const [taskModels, setTaskModels] = useState([]);
 
   useEffect(() => {
-    fetch("/api/questions")
+    fetch("/api/taskModels")
       .then((res) => res.json())
-      .then((data) => setQuestions(data || []))
-      .catch(() => setQuestions([]));
+      .then((data) => setTaskModels(data || []))
+      .catch(() => setTaskModels([]));
   }, []);
 
   const addObservation = () => {
@@ -30,7 +29,7 @@ export default function ObservationEditor({ observations, setObservations, const
         text: "",
         constructId: "",
         type: "selected_response",
-        linkedQuestionIds: [],
+        linkedTaskModelIds: [],
         rubric: null,
         scoring: { method: "binary", weights: {} },
       },
@@ -48,11 +47,11 @@ export default function ObservationEditor({ observations, setObservations, const
   };
 
   const handleQuestionToggle = (obs, qid) => {
-    const isSelected = obs.linkedQuestionIds.includes(qid);
+    const isSelected = obs.linkedTaskModelIds.includes(qid);
     const newIds = isSelected
-      ? obs.linkedQuestionIds.filter((id) => id !== qid)
-      : [...obs.linkedQuestionIds, qid];
-    updateObservation(obs.id, { linkedQuestionIds: newIds });
+      ? obs.linkedTaskModelIds.filter((id) => id !== qid)
+      : [...obs.linkedTaskModelIds, qid];
+    updateObservation(obs.id, { linkedTaskModelIds: newIds });
   };
 
   const renderScoringEditor = (obs) => {
@@ -309,32 +308,27 @@ export default function ObservationEditor({ observations, setObservations, const
 
             {/* Linked questions */}
             <div>
-              <label className="block text-sm font-medium">Linked Questions</label>
-              <Input
-                type="text"
-                placeholder="Search questions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="mb-2"
-              />
+              <label className="block text-sm font-medium">Linked Task Models</label>
               <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1 bg-white">
-                {questions
-                  .filter((q) =>
-                    q.stem.toLowerCase().includes(search.toLowerCase())
-                  )
-                  .map((q) => (
-                    <div key={q.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`chk-${o.id}-${q.id}`}
-                        checked={o.linkedQuestionIds.includes(q.id)}
-                        onCheckedChange={() => handleQuestionToggle(o, q.id)}
-                      />
-                      <label htmlFor={`chk-${o.id}-${q.id}`} className="text-sm">
-                        {q.stem}
-                      </label>
-                    </div>
-                  ))}
+                {taskModels.length === 0 && (
+                  <p className="text-gray-500 text-sm">No task models available</p>
+                )}
+                {taskModels.map((tm) => (
+                  <div key={tm.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`chk-${o.id}-${tm.id}`}
+                      checked={o.linkedTaskModelIds.includes(tm.id)}
+                      onCheckedChange={() => handleQuestionToggle(o, tm.id)}
+                    />
+                    <label htmlFor={`chk-${o.id}-${tm.id}`} className="text-sm">
+                      {tm.name || tm.id}
+                    </label>
+                  </div>
+                ))}
               </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Select one or more Task Models that elicit this indicator.
+              </p>
             </div>
 
             {/* Scoring */}

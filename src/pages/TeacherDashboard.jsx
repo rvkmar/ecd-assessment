@@ -12,6 +12,8 @@ import TasksManager from "../components/tasks/TasksManager";
 import SessionBuilder from "../components/sessions/SessionBuilder";
 import AnalyticsPanel from "../components/AnalyticsPanel";
 
+import QuestionBankTabs from "@/components/questions/QuestionBankTabs";
+
 export default function TeacherDashboard() {
   const { auth, logout } = useAuth();
   const [data, setData] = useState(null);
@@ -43,7 +45,7 @@ export default function TeacherDashboard() {
         <DashboardLayout
           title="Teacher Dashboard"
           tabs={[
-            { id: "questions", label: "QuestionBank", content: <QuestionBank /> },
+            { id: "questions", label: "QuestionBank", content: <QuestionBankTabs /> },
             { id: "activities", label: "Activities", content: <TasksManager /> },
             { id: "sessions", label: "Sessions", content: <SessionBuilder /> },
             { id: "analytics", label: "Analytics", content: <AnalyticsPanel /> },

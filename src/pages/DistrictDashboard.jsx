@@ -13,6 +13,8 @@ import TasksManager from "../components/tasks/TasksManager";
 import SessionBuilder from "../components/sessions/SessionBuilder";
 import AnalyticsPanel from "../components/AnalyticsPanel";
 
+import QuestionBankTabs from "@/components/questions/QuestionBankTabs";
+
 export default function DistrictDashboard() {
   const { auth, logout } = useAuth();
   const [data, setData] = useState(null);
@@ -45,7 +47,7 @@ export default function DistrictDashboard() {
       <DashboardLayout
         title="District Dashboard"
         tabs={[
-          { id: "questions", label: "QuestionBank", content: <QuestionBank /> },
+          { id: "questions", label: "QuestionBank", content: <QuestionBankTabs /> },
           { id: "competencies", label: "Competencies", content: <CompetencyModelBuilder /> },
           { id: "evidence", label: "Evidences", content: <EvidenceModelBuilder /> },
           { id: "tasks", label: "Activity Templates", content: <TaskModelBuilder /> },
