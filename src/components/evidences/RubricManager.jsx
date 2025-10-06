@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 // RubricManager.jsx
 // A district-level Rubric editor for strict ECD Evidence Models.
@@ -12,6 +13,12 @@ import React, { useEffect, useState } from "react";
 export default function RubricManager({ value = null, observations = [], onChange = () => {}, onSave = null, readOnly = false }) {
   const blankLevel = () => ({ id: `lvl_${Math.random().toString(36).slice(2, 9)}`, name: "New level", descriptor: "Describe this level", score: 1 });
   const blankCriterion = () => ({ id: `crit_${Math.random().toString(36).slice(2, 9)}`, name: "Criterion", levels: [blankLevel()] });
+
+  const notify = (msg, type = "info") => {
+    if (type === "success") toast.success(msg);
+    else if (type === "error") toast.error(msg);
+    else toast(msg);
+  };
 
   const [rubric, setRubric] = useState(() => value || {
     id: `rub_${Math.random().toString(36).slice(2,9)}`,

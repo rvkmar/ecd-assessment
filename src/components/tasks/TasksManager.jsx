@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import Modal from "../ui/Modal";
 
 // TasksManager.jsx
 // Minimal UI for managing tasks (create instances of task models with optional linked questions)
@@ -9,8 +11,16 @@ export default function TasksManager({ notify }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // const notify = (msg, type = "info") => {
+  //   if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
+  
   const [selectedModelId, setSelectedModelId] = useState("");
   const [mappedQuestions, setMappedQuestions] = useState([]);
+
+  const [deleteModal, setDeleteModal] = useState({ open: false, taskId: null });
 
   // Load tasks, taskModels, questions
   useEffect(() => {
@@ -67,16 +77,35 @@ export default function TasksManager({ notify }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this activity?")) return;
+  // const handleDelete = async (id) => {
+  //   if (!confirm("Delete this activity?")) return;
+  //   try {
+  //     const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+  //     if (!res.ok) throw new Error("Failed to delete activity");
+  //     setTasks(tasks.filter((t) => t.id !== id));
+  //     notify?.("Activity deleted");
+  //   } catch (err) {
+  //     console.error(err);
+  //     notify?.("❌ Failed to delete activity");
+  //   }
+  // };
+
+  const confirmDeleteTask = (taskId) => {
+    setDeleteModal({ open: true, taskId });
+  };
+
+  const performDeleteTask = async () => {
+    const { taskId } = deleteModal;
+    if (!taskId) return setDeleteModal({ open: false, taskId: null });
     try {
-      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete activity");
-      setTasks(tasks.filter((t) => t.id !== id));
-      notify?.("Activity deleted");
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      notify?.("✅ Activity deleted successfully");
     } catch (err) {
-      console.error(err);
-      notify?.("❌ Failed to delete activity");
+      notify?.("❌ Failed to delete activity: " + err.message);
+    } finally {
+      setDeleteModal({ open: false, taskId: null });
     }
   };
 
@@ -140,7 +169,7 @@ export default function TasksManager({ notify }) {
                 <div className="text-xs text-gray-400">{t.id}</div>
               </div>
               <button
-                onClick={() => handleDelete(t.id)}
+                onClick={() => confirmDeleteTask(t.id)}
                 className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
               >
                 Delete
@@ -151,6 +180,14 @@ export default function TasksManager({ notify }) {
       ) : (
         <p className="text-sm text-gray-500">No activities defined yet</p>
       )}
+      <Modal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, taskId: null })}
+        onConfirm={performDeleteTask}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this task?"
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+      />
     </div>
   );
 }

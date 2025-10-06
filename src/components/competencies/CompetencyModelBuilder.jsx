@@ -10,12 +10,19 @@ import TableView from "./CompetencyViews/TableView";
 import ListView from "./CompetencyViews/ListView";
 import GraphView from "./CompetencyViews/GraphView";
 import CompetencyPanel from "./CompetencyPanel";
+import toast from "react-hot-toast";
 
 export default function CompetencyModelBuilder({ notify }) {
   const { models, competencies, links, saveAll, loading } = useCompetencyStore(notify);
   const [activeModelId, setActiveModelId] = useState(null);
   const [viewMode, setViewMode] = useState("graph");
 
+  // const notify = (msg, type = "info") => {
+  // if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
+  
   const [modelForm, setModelForm] = useState({ id: null, name: "", description: "" });
   const [compForm, setCompForm] = useState({ id: null, name: "", description: "", parentId: "", modelId: "" });
 

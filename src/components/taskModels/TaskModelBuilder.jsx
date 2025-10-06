@@ -2,11 +2,19 @@
 import React, { useState, useEffect } from "react";
 import TaskModelList from "./TaskModelList";
 import TaskModelForm from "./TaskModelForm";
+import toast from "react-hot-toast";
+
 
 export default function TaskModelBuilder({ notify }) {
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState(null);
 
+  // const notify = (msg, type = "info") => {
+  //   if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
+  
   // Load task models from backend
   useEffect(() => {
     fetch("/api/taskModels")

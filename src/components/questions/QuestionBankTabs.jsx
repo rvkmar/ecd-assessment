@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import QuestionDashboard from "./QuestionDashboard";
 import QuestionList from "./QuestionList";
 import QuestionEditor from "./QuestionEditor";
+import toast from "react-hot-toast";
+
 
 /**
  * QuestionBankTabs
@@ -17,7 +19,12 @@ import QuestionEditor from "./QuestionEditor";
 export default function QuestionBankTabs() {
   const [tab, setTab] = useState("dashboard");
   const [editing, setEditing] = useState(null);
-  const notify = (msg) => alert(msg);
+  // const notify = (msg) => alert(msg);
+  const notify = (msg, type = "info") => {
+    if (type === "success") toast.success(msg);
+    else if (type === "error") toast.error(msg);
+    else toast(msg);
+  };
 
   return (
     <div className="p-6">

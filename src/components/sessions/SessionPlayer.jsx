@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import Modal from "../ui/Modal";
+import toast from "react-hot-toast";
 
 import { useNavigate } from "react-router-dom";
 // SessionPlayer.jsx
@@ -16,6 +17,12 @@ export default function SessionPlayer({
 }) {
   // ----- session identification -----
   const [sessionId, setSessionId] = useState(propSessionId || null);
+
+  const notify = (msg, type = "info") => {
+    if (type === "success") toast.success(msg);
+    else if (type === "error") toast.error(msg);
+    else toast(msg);
+  };
 
   // ----- domain state -----
   const [session, setSession] = useState(null); // full session object from backend
@@ -59,6 +66,7 @@ export default function SessionPlayer({
   const [policies, setPolicies] = useState([]);
 
   const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
+  const [completeModal, setCompleteModal] = useState(false);
 
   useEffect(() => {
     fetch("/api/policies")
@@ -531,24 +539,20 @@ export default function SessionPlayer({
 
 
   // ----- finish session -----
-  async function handleFinish() {
-    if (!confirm("Finish this session?")) return;
+  const confirmCompleteSession = () => setCompleteModal(true);
+
+  const performCompleteSession = async () => {
     try {
-      const res = await fetch(`/api/sessions/${sessionIdRef.current}/finish`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error("Failed to finish session");
-      const updated = await res.json();
-      setSession(updated);
-      setNoMoreTasks(true);
-      if (onFinished) onFinished(updated);
-      alert("Session finished.");
-    } catch (e) {
-      console.error(e);
-      alert("Failed to finish session: " + e.message);
-      setFinishing(false);
+      await finishSession(session.id); // your existing API call
+      notify?.("✅ Session completed");
+      navigate("/sessions"); // or relevant route
+    } catch (err) {
+      notify?.("❌ Failed to complete session: " + err.message);
+    } finally {
+      setCompleteModal(false);
     }
-  }
+  };
+
 
   async function confirmFinish() {
     setFinishing(true);

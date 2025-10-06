@@ -1,10 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import Modal from "../ui/Modal";
+
+
+import toast from "react-hot-toast";
+
 
 export default function QuestionList({ notify, onEdit }) {
   const [questions, setQuestions] = useState([]);
   const [search, setSearch] = useState("");
+  
+  // const notify = (msg, type = "info") => {
+  //   if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
   
   const [subjectFilter, setSubjectFilter] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");

@@ -3,6 +3,9 @@ import SessionList from "./SessionList";
 import SessionForm from "./SessionForm";
 import SessionReport from "./SessionReport";
 import NavBar from "../ui/NavBar";
+import Modal from "../ui/Modal";
+import toast from "react-hot-toast";
+
 
 // SessionBuilder.jsx
 // Top-level manager for Sessions
@@ -19,6 +22,13 @@ export default function SessionBuilder({ notify }) {
   const [activeCount, setActiveCount] = useState(0);
   const [archivedCount, setArchivedCount] = useState(0);
 
+  const [deleteModal, setDeleteModal] = useState({ open: false, sessionId: null });
+
+  // const notify = (msg, type = "info") => {
+  //   if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
 
   // Load sessions + supporting collections
   useEffect(() => {
@@ -114,22 +124,41 @@ export default function SessionBuilder({ notify }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this session? This cannot be undone.")) return;
-    setBusy(true);
+  // const handleDelete = async (id) => {
+  //   if (!confirm("Delete this session? This cannot be undone.")) return;
+  //   setBusy(true);
+  //   try {
+  //     const res = await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+  //     if (!res.ok) {
+  //       const err = await res.json().catch(() => ({}));
+  //       throw new Error(err.error || `Failed to delete (status ${res.status})`);
+  //     }
+  //     setSessions((prev) => prev.filter((s) => s.id !== id));
+  //     notify?.("Session deleted.");
+  //   } catch (e) {
+  //     console.error(e);
+  //     notify?.("❌ Failed to delete session");
+  //   } finally {
+  //     setBusy(false);
+  //   }
+  // };
+
+  const confirmDeleteSession = (sessionId) => {
+    setDeleteModal({ open: true, sessionId });
+  };
+
+  const performDeleteSession = async () => {
+    const { sessionId } = deleteModal;
+    if (!sessionId) return setDeleteModal({ open: false, sessionId: null });
     try {
-      const res = await fetch(`/api/sessions/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Failed to delete (status ${res.status})`);
-      }
-      setSessions((prev) => prev.filter((s) => s.id !== id));
-      notify?.("Session deleted.");
-    } catch (e) {
-      console.error(e);
-      notify?.("❌ Failed to delete session");
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete session");
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      notify?.("✅ Session deleted successfully");
+    } catch (err) {
+      notify?.("❌ Failed to delete session: " + err.message);
     } finally {
-      setBusy(false);
+      setDeleteModal({ open: false, sessionId: null });
     }
   };
 
@@ -224,7 +253,7 @@ export default function SessionBuilder({ notify }) {
         onPlay={handlePlay}
         onPause={handlePause}
         onResume={handleResume}
-        // onDelete={handleDelete}
+        // onDelete={confirmDeleteSession}
         onArchive={handleArchive}   // ✅ instead of onDelete
         onViewReport={handleViewReport}
       />
@@ -257,6 +286,14 @@ export default function SessionBuilder({ notify }) {
       )}
 
       {busy && <div className="text-sm text-gray-500">Working...</div>}
+      <Modal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, sessionId: null })}
+        onConfirm={performDeleteSession}
+        title="Confirm Delete"
+        message="Delete this session? This action cannot be undone."
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+      />
     </div>
   );
 }

@@ -14,11 +14,19 @@ import Modal from "../ui/Modal";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+import toast from "react-hot-toast";
+
 export default function QuestionEditor({ notify }) {
   const [questions, setQuestions] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // const notify = (msg, type = "info") => {
+  // if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
+  
   const [deleteModal, setDeleteModal] = useState({
     open: false,
     id: null,

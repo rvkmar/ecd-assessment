@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import CompetencyForm from "./CompetencyForm";
 import CompetencyLinker from "./CompetencyLinker";
+import toast from "react-hot-toast";
+
 
 export default function CompetencyPanel({
   models,
@@ -15,6 +17,12 @@ export default function CompetencyPanel({
 }) {
   const [mode, setMode] = useState("addUpdate"); // "addUpdate" | "crosslink"
 
+  // const notify = (msg, type = "info") => {
+  //   if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
+  
   return (
     <div className="mb-4 mt-4 border p-3 rounded bg-gray-50">
       {/* ✅ Mode Selector */}

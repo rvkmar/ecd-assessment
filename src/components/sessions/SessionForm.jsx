@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 // SessionForm.jsx
 // Props:
@@ -17,6 +18,12 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
   const [policyId, setPolicyId] = useState(model.nextTaskPolicy?.policyId || "");
   const [busy, setBusy] = useState(false);
 
+  // const notify = (msg, type = "info") => {
+  //   if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
+  
   useEffect(() => {
     setStudentId(model.studentId || "");
     setSelectedTasks(model.taskIds || []);

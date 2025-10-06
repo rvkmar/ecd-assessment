@@ -1,5 +1,7 @@
 // src/components/taskModels/TaskModelForm.jsx
 import React, { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+
 
 export default function TaskModelForm({ model, onSave, onCancel, notify }) {
   const [name, setName] = useState(model?.name || "");
@@ -19,6 +21,12 @@ export default function TaskModelForm({ model, onSave, onCancel, notify }) {
   const [subTaskIds, setSubTaskIds] = useState(model?.subTaskIds || []);
   const [availableTaskModels, setAvailableTaskModels] = useState([]);
 
+  // const notify = (msg, type = "info") => {
+  //   if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
+  
   // 🔹 Question Blueprint metadata
   const [blueprint, setBlueprint] = useState(
     model?.questionBlueprint || {

@@ -1,9 +1,16 @@
 import React, { useState } from "react";
+import toast from "react-hot-toast";
 
 const CompetencyLinker = ({ models = [], competencies = [], links = [], saveAll, notify }) => {
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
   const [modalIndex, setModalIndex] = useState(null);
+
+  // const notify = (msg, type = "info") => {
+  // if (type === "success") toast.success(msg);
+  //   else if (type === "error") toast.error(msg);
+  //   else toast(msg);
+  // };
 
   // --- Add new crosslink ---
   const handleLink = () => {
