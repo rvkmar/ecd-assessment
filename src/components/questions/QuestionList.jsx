@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/select";
 export default function QuestionList({ notify, onEdit }) {
   const [questions, setQuestions] = useState([]);
   const [search, setSearch] = useState("");
+  
   const [subjectFilter, setSubjectFilter] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -57,6 +58,18 @@ export default function QuestionList({ notify, onEdit }) {
     const matchStatus = !statusFilter || q.status === statusFilter;
     return matchSearch && matchSubject && matchGrade && matchStatus;
   });
+
+  // --- Group reading sets ---
+  const readingSets = filtered
+    .filter((q) => q.type === "reading")
+    .map((parent) => ({
+      parent,
+      children: filtered.filter((child) => child.passageId === parent.id),
+    }));
+
+  const nonReading = filtered.filter(
+    (q) => q.type !== "reading" && !q.passageId
+  );
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this question?")) return;
@@ -167,8 +180,86 @@ export default function QuestionList({ notify, onEdit }) {
                 </td>
               </tr>
             )}
-            {filtered.map((q) => (
+            {/* Render grouped reading sets first */}
+            {readingSets.map(({ parent, children }) => (
+              <React.Fragment key={parent.id}>
+                <tr className="bg-yellow-50 border-t-2 border-yellow-300">
+                  <td className="border p-2 font-semibold">{parent.id}</td>
+                  <td className="border p-2 max-w-sm">
+                    📖 <strong>{parent.stem.slice(0, 100)}</strong>
+                  </td>
+                  <td className="border p-2">{parent.metadata?.subject}</td>
+                  <td className="border p-2">{parent.metadata?.grade}</td>
+                  <td className="border p-2">{parent.metadata?.topic}</td>
+                  <td className="border p-2 capitalize">{parent.metadata?.difficulty}</td>
+                  <td className="border p-2 font-semibold text-blue-700">
+                    {parent.status}
+                  </td>
+                  <td className="border p-2 space-x-2">
+                    <button
+                      onClick={() => onEdit(parent)}
+                      className="bg-blue-600 text-white px-2 py-1 rounded"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(parent.id)}
+                      className="bg-red-500 text-white px-2 py-1 rounded"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+
+                {/* Nested sub-questions */}
+                {children.map((child) => (
+                  <tr key={child.id} className="bg-white hover:bg-gray-50">
+                    <td className="border p-2 pl-6 text-gray-700">{child.id}</td>
+                    <td className="border p-2 max-w-sm text-gray-700">
+                      ↳ {child.stem.slice(0, 80)}
+                    </td>
+                    <td className="border p-2">{child.metadata?.subject}</td>
+                    <td className="border p-2">{child.metadata?.grade}</td>
+                    <td className="border p-2">{child.metadata?.topic}</td>
+                    <td className="border p-2 capitalize">
+                      {child.metadata?.difficulty}
+                    </td>
+                    <td
+                      className={`border p-2 capitalize font-semibold ${
+                        child.status === "active"
+                          ? "text-green-600"
+                          : child.status === "review"
+                          ? "text-yellow-600"
+                          : child.status === "retired"
+                          ? "text-gray-500"
+                          : "text-blue-600"
+                      }`}
+                    >
+                      {child.status}
+                    </td>
+                    <td className="border p-2 space-x-2">
+                      <button
+                        onClick={() => onEdit(child)}
+                        className="bg-blue-500 text-white px-2 py-1 rounded"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(child.id)}
+                        className="bg-red-500 text-white px-2 py-1 rounded"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+
+            {/* Non-reading questions */}
+            {nonReading.map((q) => (
               <tr key={q.id} className="hover:bg-gray-50">
+
                 <td className="border p-2">{q.id}</td>
                 <td className="border p-2 max-w-sm truncate">{q.stem}</td>
                 <td className="border p-2">{q.metadata?.subject}</td>

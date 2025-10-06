@@ -25,6 +25,13 @@ export default function SessionPlayer({
   const [question, setQuestion] = useState(null);
   const [evidenceModels, setEvidenceModels] = useState([]);
   
+  // --- Reading comprehension support ---
+  const [readingPassage, setReadingPassage] = useState(null);
+
+  // 🔹 Track currently active passage group to avoid flicker
+  const [activePassageId, setActivePassageId] = useState(null);
+  const [activePassageQuestions, setActivePassageQuestions] = useState([]);
+
   // ----- shared stimulus / parent task support -----
   const [parentTaskModel, setParentTaskModel] = useState(null);
 
@@ -153,6 +160,16 @@ export default function SessionPlayer({
           fetch("/api/evidenceModels").then((r) => r.ok ? r.json() : []),
         ]);
 
+        // 🔹 Fetch all referenced questions for teacher view
+        let questionBank = [];
+        try {
+          const qRes = await fetch("/api/questions");
+          questionBank = (await qRes.json()) || [];
+        } catch (e) {
+          console.warn("Failed to fetch question bank for review grouping", e);
+        }
+        sess.questions = questionBank;
+
         if (cancelled) return;
 
         setSession(sess || null);
@@ -266,6 +283,11 @@ export default function SessionPlayer({
         setQuestion(null);
         setTaskModel(null);
         setNoMoreTasks(true);
+
+        // 🔹 Reset reading passage context when session ends
+        setReadingPassage(null);
+        setActivePassageId(null);
+        setActivePassageQuestions([]);        
         return;
       }
 
@@ -312,11 +334,43 @@ export default function SessionPlayer({
         try {
           const q = await fetchJsonSafe(`/api/questions/${enrichedTask.questionId}`);
           setQuestion(q || null);
+          // 🔹 Handle reading comprehension context intelligently
+          if (q?.passageId) {
+            // If this is the same passage as the previous one, keep it visible
+            if (q.passageId === activePassageId && readingPassage) {
+              // no refetch needed; just keep current
+              console.debug("Continuing existing reading passage set", q.passageId);
+            } else {
+              try {
+                const passage = await fetchJsonSafe(`/api/questions/${q.passageId}`);
+                if (passage?.type === "reading") {
+                  setReadingPassage(passage);
+                  setActivePassageId(passage.id);
+                  setActivePassageQuestions(passage.subQuestionIds || []);
+                } else {
+                  setReadingPassage(null);
+                  setActivePassageId(null);
+                  setActivePassageQuestions([]);
+                }
+              } catch (e) {
+                console.warn("No reading passage found for", q.passageId);
+                setReadingPassage(null);
+                setActivePassageId(null);
+                setActivePassageQuestions([]);
+              }
+            }
+          } else {
+            // This question has no linked passage
+            setReadingPassage(null);
+            setActivePassageId(null);
+            setActivePassageQuestions([]);
+          }        
         } catch {
           setQuestion(null);
         }
       } else {
         setQuestion(null);
+        setReadingPassage(null);
       }
     } catch (e) {
       console.error("Failed to load next activity:", e);
@@ -334,6 +388,34 @@ export default function SessionPlayer({
       }
     }
     return null;
+  }
+  // 🔹 Group responses by reading comprehension passage
+  function groupResponsesByPassage(sessionObj) {
+    if (!sessionObj || !sessionObj.responses?.length) return [];
+
+    const groups = [];
+    const others = [];
+
+    for (const resp of sessionObj.responses) {
+      const qId = resp.questionId;
+      if (!qId) {
+        others.push(resp);
+        continue;
+      }
+      const q = sessionObj.questions?.find?.((qq) => qq.id === qId) || null;
+      if (q?.passageId) {
+        let group = groups.find((g) => g.passageId === q.passageId);
+        if (!group) {
+          group = { passageId: q.passageId, subResponses: [] };
+          groups.push(group);
+        }
+        group.subResponses.push(resp);
+      } else {
+        others.push(resp);
+      }
+    }
+
+    return { groups, others };
   }
 
   async function handleSubmit(e) {
@@ -656,6 +738,28 @@ export default function SessionPlayer({
           {question ? (
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
+              {/* 🔹 Display Reading Passage if linked */}
+              {/* 🔹 Show active reading passage only once per passage group */}
+              {readingPassage && activePassageQuestions.includes(question?.id) && (
+                <div className="sticky top-0 z-10 bg-blue-50 border border-blue-200 rounded p-3 mb-3 shadow-sm transition-opacity duration-500 ease-in-out">
+                  <h4 className="font-semibold text-blue-800 mb-1 flex items-center justify-between">
+                    📘 Reading Passage
+                    <span className="text-xs text-gray-500">
+                      ({activePassageQuestions.indexOf(question.id) + 1}/
+                      {activePassageQuestions.length})
+                    </span>
+                  </h4>
+                  <p className="text-sm text-gray-800 whitespace-pre-line">
+                    {readingPassage.stem}
+                  </p>
+                  {readingPassage.subQuestionIds?.length > 0 && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Linked questions: {readingPassage.subQuestionIds.length}
+                    </div>
+                  )}
+                </div>
+              )}
+                
                 <div className="font-medium">Question</div>
                 <div className="mt-1 text-gray-800">{question.stem}</div>
               </div>
@@ -879,39 +983,175 @@ export default function SessionPlayer({
       ) : (
         <div>No activity loaded.</div>
       )}
-
       {/* Responses timeline */}
       <div>
-        <h4 className="font-semibold">Responses</h4>
-        {session?.responses?.length ? (
-          <ul className="list-disc ml-5 text-sm">
-            {session.responses.map((r, i) => {
-              // try to find the enriched task for this response
-              // and get competency/evidence from taskModel if available
-              const t = session.tasks?.find((x) => x.id === r.taskId) || null;
-              const competency = t?.taskModel?.competencyId || "?";
-              const evidence = t?.taskModel?.evidenceId || "?";
+        <h4 className="font-semibold mb-2 flex justify-between items-center">
+          <span>Responses</span>
 
-              return (
-                <li key={i}>
-                  <div>
-                    <strong>Activity:</strong> {r.taskId}{" "}
-                    <span className="text-gray-500">
-                      at {new Date(r.timestamp).toLocaleString()}
-                    </span>
+          {/* Top-level collapse/expand for teacher */}
+          {isTeacher && groups?.length > 0 && (
+            <div className="space-x-2">
+              <button
+                onClick={() => setCollapsedGroups(new Set())}
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Expand All
+              </button>
+              <button
+                onClick={() =>
+                  setCollapsedGroups(new Set(groups.map((g) => g.passageId)))
+                }
+                className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Collapse All
+              </button>
+            </div>
+          )}
+        </h4>
+
+        {isTeacher ? (
+          (() => {
+            // ✅ Group responses by passage
+            const { groups, others } = groupResponsesByPassage(session);
+
+            // ✅ Local collapse state (default: all collapsed)
+            const [collapsedGroups, setCollapsedGroups] = React.useState(
+              () => new Set(groups.map((g) => g.passageId))
+            );
+
+            // ✅ Toggle single passage collapse
+            const toggleGroup = (id) => {
+              setCollapsedGroups((prev) => {
+                const updated = new Set(prev);
+                if (updated.has(id)) updated.delete(id);
+                else updated.add(id);
+                return updated;
+              });
+            };
+
+            if ((!groups || groups.length === 0) && (!others || others.length === 0)) {
+              return <p className="text-sm text-gray-500">No responses yet.</p>;
+            }
+
+            return (
+              <div className="space-y-6">
+                {/* 🔹 Reading comprehension groups */}
+                {groups.map((grp, gi) => {
+                  const passage =
+                    session.questions?.find?.((q) => q.id === grp.passageId) || null;
+                  const isCollapsed = collapsedGroups.has(grp.passageId);
+
+                  return (
+                    <div
+                      key={grp.passageId || gi}
+                      className="border border-blue-200 bg-blue-50 rounded p-3 shadow-sm"
+                    >
+                      <div className="flex justify-between items-center">
+                        <h5
+                          className="font-semibold text-blue-800 cursor-pointer"
+                          onClick={() => toggleGroup(grp.passageId)}
+                        >
+                          📘 Passage {passage?.metadata?.topic || grp.passageId}
+                        </h5>
+                        <button
+                          onClick={() => toggleGroup(grp.passageId)}
+                          className="text-xs text-blue-600 underline"
+                        >
+                          {isCollapsed ? "Expand" : "Collapse"}
+                        </button>
+                      </div>
+
+                      {!isCollapsed && (
+                        <>
+                          <p className="text-sm text-gray-800 whitespace-pre-line mt-1 mb-3">
+                            {passage?.stem || "(passage text unavailable)"}
+                          </p>
+
+                          <div className="ml-3 border-l-4 border-blue-300 pl-3 space-y-2">
+                            {grp.subResponses.map((r, i) => (
+                              <div
+                                key={i}
+                                className="p-2 bg-white border rounded shadow-sm"
+                              >
+                                <div className="text-sm text-gray-700">
+                                  <strong>Q:</strong> {r.questionId}{" "}
+                                  <span className="text-gray-500 ml-1">
+                                    {new Date(r.timestamp).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="text-gray-800">
+                                  <strong>Answer:</strong>{" "}
+                                  {r.rawAnswer ||
+                                    r.rubricLevel ||
+                                    r.scoredValue ||
+                                    "(none)"}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* 🔹 Non-reading responses */}
+                {others.length > 0 && (
+                  <div className="border border-gray-200 rounded p-3 bg-white shadow-sm">
+                    <h5 className="font-semibold mb-1 text-gray-800">
+                      Other Responses
+                    </h5>
+                    <ul className="list-disc ml-5 text-sm">
+                      {others.map((r, i) => (
+                        <li key={i} className="text-gray-700">
+                          <strong>Q:</strong> {r.questionId} —{" "}
+                          {r.rawAnswer ||
+                            r.rubricLevel ||
+                            r.scoredValue ||
+                            "(none)"}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="text-gray-700">
-                    Answer: {r.rawAnswer || r.rubricLevel || r.scoredValue || "(none)"}
-                  </div>
-                  <div className="text-gray-500 text-xs">
-                    [C: {competency}, E: {evidence}]
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                )}
+              </div>
+            );
+          })()
         ) : (
-          <p className="text-sm text-gray-500">No responses yet.</p>
+          <>
+            {session?.responses?.length ? (
+              <ul className="list-disc ml-5 text-sm">
+                {session.responses.map((r, i) => {
+                  const t = session.tasks?.find((x) => x.id === r.taskId) || null;
+                  const competency = t?.taskModel?.competencyId || "?";
+                  const evidence = t?.taskModel?.evidenceId || "?";
+
+                  return (
+                    <li key={i}>
+                      <div>
+                        <strong>Activity:</strong> {r.taskId}{" "}
+                        <span className="text-gray-500">
+                          at {new Date(r.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="text-gray-700">
+                        Answer:{" "}
+                        {r.rawAnswer ||
+                          r.rubricLevel ||
+                          r.scoredValue ||
+                          "(none)"}
+                      </div>
+                      <div className="text-gray-500 text-xs">
+                        [C: {competency}, E: {evidence}]
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500">No responses yet.</p>
+            )}
+          </>
         )}
       </div>
 

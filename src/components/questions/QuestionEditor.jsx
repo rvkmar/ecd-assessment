@@ -10,10 +10,25 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
 export default function QuestionEditor({ notify }) {
   const [questions, setQuestions] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // For reading comprehension
+  const [availableQuestions, setAvailableQuestions] = useState([]);
+  const [linkedSubQuestions, setLinkedSubQuestions] = useState([]);
+
+  // Manage linked preview and expansion
+  const [expandedPreview, setExpandedPreview] = useState(false);
+
+  const toggleLinkedPreview = () => setExpandedPreview((prev) => !prev);
+
+  const getLinkedQuestionPreview = (ids = []) =>
+    availableQuestions.filter((q) => ids.includes(q.id));
 
   // dropdown presets
   const subjects = ["Mathematics", "Science", "English", "Social Science"];
@@ -68,6 +83,14 @@ export default function QuestionEditor({ notify }) {
       .catch(() => setQuestions([]));
   }, []);
 
+  // Load all questions for linking sub-questions
+  useEffect(() => {
+    fetch("/api/questions")
+      .then((res) => res.json())
+      .then((data) => setAvailableQuestions(data || []))
+      .catch(() => setAvailableQuestions([]));
+  }, []);
+
   const blankQuestion = () => ({
     id: `q${Date.now()}`,
     type: "mcq",
@@ -96,6 +119,12 @@ export default function QuestionEditor({ notify }) {
     const method = q._isNew ? "POST" : "PUT";
     const url = q._isNew ? "/api/questions" : `/api/questions/${q.id}`;
     try {
+      // Validation for reading comprehension
+      if (q.type === "reading" && (!q.subQuestionIds || q.subQuestionIds.length === 0)) {
+        alert("Please link at least one sub-question before saving this passage.");
+        setLoading(false);
+        return;
+      }      
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -109,6 +138,19 @@ export default function QuestionEditor({ notify }) {
       fetch("/api/questions")
         .then((res) => res.json())
         .then((data) => setQuestions(data || []));
+
+      // 🔹 Auto-update sub-questions when type = "reading"
+      if (q.type === "reading" && q.subQuestionIds?.length > 0) {
+        for (const subId of q.subQuestionIds) {
+          await fetch(`/api/questions/${subId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ passageId: saved.id }),
+          });
+        }
+        notify?.(`📚 Linked ${q.subQuestionIds.length} sub-questions to this passage`);
+      }      
+      
     } catch (err) {
       console.error(err);
       notify?.("❌ Failed to save question");
@@ -192,6 +234,116 @@ export default function QuestionEditor({ notify }) {
           />
         </div>
 
+        {/* 🔹 Reading comprehension passage editor */}
+        {q.type === "reading" && (
+          <div className="space-y-4 border p-3 rounded-md bg-white">
+            <h4 className="font-semibold text-base flex items-center justify-between">
+              🧾 Reading Passage
+              <button
+                type="button"
+                onClick={toggleLinkedPreview}
+                className="text-xs text-blue-600 underline"
+              >
+                {expandedPreview ? "Hide Linked Preview" : "Show Linked Preview"}
+              </button>
+            </h4>
+
+            {/* Passage Text */}
+            <Textarea
+              rows={8}
+              placeholder="Paste or write the reading passage here..."
+              value={q.stem}
+              onChange={(e) => updateField("stem", e.target.value)}
+              className="w-full border p-2 rounded"
+            />
+
+            {/* Sub-question linking */}
+            <div>
+              <label className="font-medium text-sm">
+                Link Sub-Questions (Ctrl/Cmd for multi-select)
+              </label>
+              <select
+                multiple
+                className="w-full border p-2 rounded text-sm"
+                value={linkedSubQuestions}
+                onChange={(e) =>
+                  setLinkedSubQuestions(
+                    Array.from(e.target.selectedOptions).map((o) => o.value)
+                  )
+                }
+              >
+                {availableQuestions
+                  .filter(
+                    (qq) =>
+                      qq.id !== q.id &&
+                      qq.type !== "reading" &&
+                      !qq.passageId
+                  )
+                  .map((qq) => (
+                    <option key={qq.id} value={qq.id}>
+                      {qq.metadata?.topic || "(untitled)"} —{" "}
+                      {qq.stem?.slice(0, 90) || qq.id}
+                    </option>
+                  ))}
+              </select>
+
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateField("subQuestionIds", linkedSubQuestions);
+                    notify?.(
+                      `📚 Linked ${linkedSubQuestions.length} sub-questions to passage`
+                    );
+                  }}
+                  className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                >
+                  Update Linked
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLinkedSubQuestions([]);
+                    updateField("subQuestionIds", []);
+                  }}
+                  className="bg-gray-400 text-white px-3 py-1 rounded text-sm"
+                >
+                  Clear Links
+                </button>
+              </div>
+            </div>
+
+            {/* Linked Sub-question preview */}
+            {expandedPreview && q.subQuestionIds?.length > 0 && (
+              <div className="mt-3 border-t pt-2 space-y-1">
+                <h5 className="font-semibold text-sm text-gray-700 mb-2">
+                  Linked Questions ({q.subQuestionIds.length})
+                </h5>
+                {getLinkedQuestionPreview(q.subQuestionIds).map((qq) => (
+                  <Card
+                    key={qq.id}
+                    className="p-2 flex justify-between items-center border-l-4 border-blue-400"
+                  >
+                    <div className="text-sm text-gray-700 truncate">
+                      ↳ {qq.stem?.slice(0, 100) || "(no text)"}
+                      <span className="ml-2 text-xs text-gray-500">
+                        [{qq.type}]
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelected({ ...qq, _isNew: false })}
+                      className="text-blue-600 underline text-xs"
+                    >
+                      Edit
+                    </button>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {/* Options for MCQ/MSQ */}
         {["mcq", "msq"].includes(q.type) && (
           <div className="space-y-2">
@@ -227,7 +379,7 @@ export default function QuestionEditor({ notify }) {
               className="bg-blue-600 text-white px-3 py-1 rounded"
               onClick={addOption}
             >
-              + Add Option
+               Add Option
             </button>
           </div>
         )}
@@ -441,7 +593,7 @@ export default function QuestionEditor({ notify }) {
             className="mt-4 bg-green-600 text-white px-4 py-2 rounded"
             onClick={() => setSelected({ ...blankQuestion(), _isNew: true })}
           >
-            + Add Question
+             Add Question
           </button>
         </>
       )}
