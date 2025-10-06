@@ -58,6 +58,8 @@ export default function SessionPlayer({
   // policies cache to resolve policy name
   const [policies, setPolicies] = useState([]);
 
+  const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
+
   useEffect(() => {
     fetch("/api/policies")
       .then((r) => r.json())
@@ -502,30 +504,31 @@ export default function SessionPlayer({
   // ----- teacher: finalize review -----
   async function handleFinalizeReview() {
     if (!sessionIdRef.current) return;
-    if (!confirm("Finalize teacher review? This will mark the session as reviewed.")) return;
+    // open modal, let user confirm
+    setFinalizeModalOpen(true);
+  }
+
+  async function performFinalizeReview() {
+    if (!sessionIdRef.current) return setFinalizeModalOpen(false);
     try {
-      const res = await fetch(`/api/sessions/${sessionIdRef.current}/review`, {
+      const res = await fetch(`/api/sessions/${sessionIdRef.current}/finalize`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewer: "teacher", timestamp: new Date().toISOString() }),
       });
-      if (!res.ok) throw new Error("Failed to finalize review");
-      const updated = await res.json();
-      setSession(updated);
-      alert("Review finalized successfully.");
-      // ✅ Navigate back to Teacher or District Dashboard → specifically Sessions tab
-      const rolePath =
-        window.location.pathname.includes("/district/")
-          ? "/district#sessions"
-          : "/teacher#sessions";
-      setTimeout(() => {
-        navigate(rolePath, { replace: true });
-      }, 500);
-    } catch (e) {
-      console.error(e);
-      alert("Error finalizing review: " + e.message);
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || "Finalize failed");
+      }
+      notify?.("✅ Session finalized");
+      // optionally refresh session state
+      await loadNextTask(); // or reload session list as appropriate
+    } catch (err) {
+      console.error(err);
+      notify?.("❌ Failed to finalize review: " + err.message);
+    } finally {
+      setFinalizeModalOpen(false);
     }
   }
+
 
   // ----- finish session -----
   async function handleFinish() {
@@ -626,6 +629,14 @@ export default function SessionPlayer({
           <div className="text-xs text-gray-600 mt-1">
             You can view all responses and assign rubric levels before finalizing.
           </div>
+          <Modal
+            isOpen={finalizeModalOpen}
+            onClose={() => setFinalizeModalOpen(false)}
+            onConfirm={performFinalizeReview}
+            title="Finalize Review"
+            message="Finalize teacher review? This will mark the session as reviewed."
+            confirmClass="bg-blue-600 hover:bg-blue-700 text-white"
+          />
         </div>
       )}
 

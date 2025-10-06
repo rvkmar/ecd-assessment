@@ -16,6 +16,8 @@ export default function QuestionList({ notify, onEdit }) {
     retired: 0,
   });
 
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
+
   const subjects = ["Mathematics", "Science", "English", "Social Science"];
   const grades = [
     "Class 3",
@@ -71,14 +73,29 @@ export default function QuestionList({ notify, onEdit }) {
     (q) => q.type !== "reading" && !q.passageId
   );
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this question?")) return;
-    await fetch(`/api/questions/${id}`, { method: "DELETE" });
-    const updated = questions.filter((q) => q.id !== id);
-    setQuestions(updated);
-    calculateStats(updated);
-    notify?.("❌ Question deleted");
+  // open modal
+  const confirmDeleteFromList = (id) => setDeleteModal({ open: true, id });
+
+  // perform deletion after confirm
+  const performDeleteFromList = async () => {
+    const { id } = deleteModal;
+    if (!id) return setDeleteModal({ open: false, id: null });
+
+    try {
+      const res = await fetch(`/api/questions/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete question");
+      const updated = questions.filter((q) => q.id !== id);
+      setQuestions(updated);
+      calculateStats(updated);
+      notify?.("✅ Question deleted");
+    } catch (e) {
+      console.error(e);
+      notify?.("❌ Failed to delete question");
+    } finally {
+      setDeleteModal({ open: false, id: null });
+    }
   };
+
 
   return (
     <div className="p-6 space-y-6">
@@ -203,7 +220,7 @@ export default function QuestionList({ notify, onEdit }) {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(parent.id)}
+                      onClick={() => confirmDeleteFromList(parent.id)}
                       className="bg-red-500 text-white px-2 py-1 rounded"
                     >
                       Delete
@@ -245,7 +262,7 @@ export default function QuestionList({ notify, onEdit }) {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(child.id)}
+                        onClick={() => confirmDeleteFromList(child.id)}
                         className="bg-red-500 text-white px-2 py-1 rounded"
                       >
                         Delete
@@ -289,7 +306,7 @@ export default function QuestionList({ notify, onEdit }) {
                     Edit
                   </button>
                   <button
-                    onClick={() => handleDelete(q.id)}
+                    onClick={() => confirmDeleteFromList(q.id)}
                     className="bg-red-500 text-white px-2 py-1 rounded"
                   >
                     Delete
@@ -300,6 +317,14 @@ export default function QuestionList({ notify, onEdit }) {
           </tbody>
         </table>
       </div>
+      <Modal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, id: null })}
+        onConfirm={performDeleteFromList}
+        title="Confirm Delete"
+        message="Delete this question? This will remove it from the question bank."
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+      />
     </div>
   );
 }

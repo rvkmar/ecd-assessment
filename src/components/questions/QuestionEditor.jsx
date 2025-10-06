@@ -9,6 +9,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import Modal from "../ui/Modal";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,14 @@ export default function QuestionEditor({ notify }) {
   const [questions, setQuestions] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    id: null,
+    type: null,
+    subQuestionIds: [],
+    passageId: null,
+  });
 
   // For reading comprehension
   const [availableQuestions, setAvailableQuestions] = useState([]);
@@ -114,57 +123,212 @@ export default function QuestionEditor({ notify }) {
     status: "new",
   });
 
+  // ✅ Prepare Question for Save — schema-compliant, auto IDs + reading linkage
+  function prepareQuestionForSave(q) {
+    // Clone to avoid mutating React state directly
+    const question = JSON.parse(JSON.stringify(q));
+
+    // --- Helper for unique IDs ---
+    const genId = (prefix = "id") =>
+      `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    // --- Ensure question has an ID ---
+    if (!question.id || question.id.toString().trim() === "") {
+      question.id = genId("q");
+    }
+
+    // --- Safe defaults ---
+    question.status = ["new", "review", "active", "retired"].includes(question.status)
+      ? question.status
+      : "new";
+
+    question.metadata ||= {};
+    question.metadata.subject ||= "General";
+    question.metadata.grade ||= "Class 6";
+    question.metadata.topic ||= "Untitled";
+    question.metadata.difficulty ||= "medium";
+
+    // --- Type-specific handling ---
+    switch (question.type) {
+      case "mcq":
+      case "msq": {
+        question.options ||= [];
+
+        // Assign unique IDs to all options
+        question.options = question.options.map((opt) => ({
+          id: opt.id || genId("opt"),
+          text: opt.text || "Option",
+          isCorrect: opt.isCorrect || false,
+        }));
+
+        // Ensure at least one valid option
+        if (question.options.length === 0) {
+          const newId = genId("opt");
+          question.options.push({ id: newId, text: "Option 1", isCorrect: true });
+        }
+
+        // Sync correctOptionIds with valid option IDs
+        const correctIds = question.options
+          .filter((o) => o.isCorrect || question.correctOptionIds?.includes(o.id))
+          .map((o) => o.id);
+
+        question.correctOptionIds =
+          correctIds.length > 0 ? correctIds : [question.options[0].id];
+        break;
+      }
+
+      case "open":
+      case "numeric":
+        question.metadata.expectedAnswer ||= "To be provided";
+        break;
+
+      case "image":
+        question.media ||= {};
+        question.media.image ||= "placeholder.png";
+        break;
+
+      case "data":
+        question.media ||= {};
+        question.media.dataset ||= "data/sample.csv";
+        break;
+
+      case "reading":
+        // Ensure reading passage has unique ID
+        question.passageId = question.id;
+        question.subQuestionIds ||= [];
+
+        // If linked sub-questions exist, ensure they reference this passageId
+        if (Array.isArray(question.subQuestionIds) && question.subQuestionIds.length > 0) {
+          question.subQuestionIds = question.subQuestionIds.map((subId) =>
+            subId.toString().trim()
+          );
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    // --- Cleanup extraneous empty properties ---
+    if (!question.media || Object.keys(question.media).length === 0) delete question.media;
+    if (!question.options?.length) delete question.options;
+
+    return question;
+  }
+
+
   const handleSave = async (q) => {
     setLoading(true);
-    const method = q._isNew ? "POST" : "PUT";
-    const url = q._isNew ? "/api/questions" : `/api/questions/${q.id}`;
+
+    // ✅ Normalize the question object for schema compliance
+    const prepared = prepareQuestionForSave(q);
+
+    const method = prepared._isNew ? "POST" : "PUT";
+    const url = prepared._isNew ? "/api/questions" : `/api/questions/${prepared.id}`;
+
     try {
-      // Validation for reading comprehension
-      if (q.type === "reading" && (!q.subQuestionIds || q.subQuestionIds.length === 0)) {
-        alert("Please link at least one sub-question before saving this passage.");
-        setLoading(false);
-        return;
-      }      
+      // --- 1️⃣ Save the main question (parent or child) ---
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(q),
+        body: JSON.stringify(prepared),
       });
       const saved = await res.json();
-      if (!res.ok) throw new Error(saved.error || res.statusText);
-      notify?.("✅ Question saved");
-      setSelected(null);
-      // refresh list
-      fetch("/api/questions")
-        .then((res) => res.json())
-        .then((data) => setQuestions(data || []));
 
-      // 🔹 Auto-update sub-questions when type = "reading"
-      if (q.type === "reading" && q.subQuestionIds?.length > 0) {
-        for (const subId of q.subQuestionIds) {
+      if (!res.ok) throw new Error(saved.error || res.statusText);
+
+      // --- 2️⃣ If this is a reading passage, update all linked sub-questions ---
+      if (prepared.type === "reading" && prepared.subQuestionIds?.length > 0) {
+        for (const subId of prepared.subQuestionIds) {
           await fetch(`/api/questions/${subId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ passageId: saved.id }),
           });
         }
-        notify?.(`📚 Linked ${q.subQuestionIds.length} sub-questions to this passage`);
-      }      
-      
+        notify?.(`📚 Linked ${prepared.subQuestionIds.length} sub-questions to this passage`);
+      }
+
+      notify?.("✅ Question saved successfully");
+      setSelected(null);
+
+      // --- 3️⃣ Refresh question list after save ---
+      fetch("/api/questions")
+        .then((res) => res.json())
+        .then((data) => setQuestions(data || []))
+        .catch(() => setQuestions([]));
     } catch (err) {
       console.error(err);
-      notify?.("❌ Failed to save question");
+      notify?.("❌ Failed to save question: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this question?")) return;
-    await fetch(`/api/questions/${id}`, { method: "DELETE" });
-    setQuestions(questions.filter((q) => q.id !== id));
-    setSelected(null);
+  // open delete confirmation modal (call this from delete buttons)
+  const confirmDelete = (id, type = null, subQuestionIds = [], passageId = null) => {
+    setDeleteModal({ open: true, id, type, subQuestionIds, passageId });
   };
+
+  // perform actual deletion (called when modal confirmed)
+  const performDelete = async () => {
+    const { id, type, subQuestionIds, passageId } = deleteModal;
+    if (!id) {
+      setDeleteModal({ open: false, id: null, type: null, subQuestionIds: [], passageId: null });
+      return;
+    }
+
+    try {
+      // If this is a reading passage, unlink its sub-questions first
+      if (type === "reading" && Array.isArray(subQuestionIds) && subQuestionIds.length > 0) {
+        for (const subId of subQuestionIds) {
+          await fetch(`/api/questions/${subId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ passageId: null }),
+          });
+        }
+        notify?.(`🔗 Unlinked ${subQuestionIds.length} sub-questions from passage ${id}`);
+      }
+
+      // If deleting a sub-question, remove it from parent passage.subQuestionIds
+      if (type !== "reading" && passageId) {
+        const parentRes = await fetch(`/api/questions/${passageId}`);
+        if (parentRes.ok) {
+          const parent = await parentRes.json();
+          if (parent?.type === "reading" && Array.isArray(parent.subQuestionIds)) {
+            const updatedSubs = parent.subQuestionIds.filter((sid) => sid !== id);
+            await fetch(`/api/questions/${passageId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ subQuestionIds: updatedSubs }),
+            });
+            notify?.(`📘 Removed ${id} from passage ${passageId}`);
+          }
+        }
+      }
+
+      // finally delete the question
+      const res = await fetch(`/api/questions/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Failed to delete question ${id}`);
+
+      // refresh local list
+      const updated = questions.filter((q) => q.id !== id);
+      setQuestions(updated);
+      setSelected(null);
+
+      // update stats if you have calculateStats or similar
+      if (typeof calculateStats === "function") calculateStats(updated);
+
+      notify?.("✅ Question deleted successfully");
+    } catch (err) {
+      console.error(err);
+      notify?.("❌ Failed to delete question: " + err.message);
+    } finally {
+      setDeleteModal({ open: false, id: null, type: null, subQuestionIds: [], passageId: null });
+    }
+  };
+
 
   const updateField = (k, v) => setSelected({ ...selected, [k]: v });
   const updateMeta = (k, v) =>
@@ -539,7 +703,7 @@ export default function QuestionEditor({ notify }) {
             <button
               type="button"
               className="px-3 py-1 bg-red-600 text-white rounded"
-              onClick={() => handleDelete(q.id)}
+              onClick={() => confirmDelete(q.id, q.type, q.subQuestionIds, q.passageId)}
             >
               Delete
             </button>
@@ -599,6 +763,20 @@ export default function QuestionEditor({ notify }) {
       )}
 
       {selected && renderEditor()}
+      
+      <Modal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, id: null, type: null, subQuestionIds: [], passageId: null })}
+        onConfirm={performDelete}
+        title="Confirm Delete"
+        message={
+          deleteModal.type === "reading"
+            ? `Delete passage ${deleteModal.id}? This will unlink ${deleteModal.subQuestionIds?.length || 0} sub-questions.`
+            : `Delete question ${deleteModal.id}?`
+        }
+        confirmClass="bg-red-500 hover:bg-red-600 text-white"
+      />
+
     </div>
   );
 }
