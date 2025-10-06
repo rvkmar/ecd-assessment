@@ -10,7 +10,7 @@ export default function TasksManager({ notify }) {
   const [loading, setLoading] = useState(true);
 
   const [selectedModelId, setSelectedModelId] = useState("");
-  const [selectedQuestionId, setSelectedQuestionId] = useState("");
+  const [mappedQuestions, setMappedQuestions] = useState([]);
 
   // Load tasks, taskModels, questions
   useEffect(() => {
@@ -28,6 +28,22 @@ export default function TasksManager({ notify }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // When Task Model changes, show which questions it contains via itemMappings
+  useEffect(() => {
+    if (!selectedModelId) {
+      setMappedQuestions([]);
+      return;
+    }
+    const tm = taskModels.find((m) => m.id === selectedModelId);
+    if (!tm || !tm.itemMappings) {
+      setMappedQuestions([]);
+      return;
+    }
+    const qids = tm.itemMappings.map((m) => m.itemId);
+    const qlist = questions.filter((q) => qids.includes(q.id));
+    setMappedQuestions(qlist);
+  }, [selectedModelId, taskModels, questions]);
+
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!selectedModelId) return notify?.("Select an activity template");
@@ -35,10 +51,9 @@ export default function TasksManager({ notify }) {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          taskModelId: selectedModelId,
-          questionId: selectedQuestionId || null,
-        }),
+          body: JSON.stringify({
+            taskModelId: selectedModelId,
+          }),
       });
       if (!res.ok) throw new Error("Failed to create activity");
       const created = await res.json();
@@ -90,19 +105,22 @@ export default function TasksManager({ notify }) {
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium">Question (optional)</label>
-          <select
-            className="border p-2 rounded w-full"
-            value={selectedQuestionId}
-            onChange={(e) => setSelectedQuestionId(e.target.value)}
-          >
-            <option value="">None</option>
-            {questions.map((q) => (
-              <option key={q.id} value={q.id}>{q.stem ? q.stem.slice(0, 40) : q.id}</option>
-            ))}
-          </select>
-        </div>
+        {/* Show questions already mapped in the selected Task Model */}
+        {mappedQuestions.length > 0 && (
+          <div className="border-t pt-2 mt-2">
+            <p className="text-sm font-medium text-gray-700">
+              This Activity Template includes the following questions:
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-600">
+              {mappedQuestions.map((q) => (
+                <li key={q.id}>
+                  {q.stem ? q.stem.slice(0, 60) : q.id}{" "}
+                  <span className="text-gray-400">({q.id})</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
           Create Acvitity

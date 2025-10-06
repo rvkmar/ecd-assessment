@@ -16,6 +16,27 @@ export default function TaskModelForm({ model, onSave, onCancel, notify }) {
   const [itemMappings, setItemMappings] = useState(model?.itemMappings || []);
   const [availableItems, setAvailableItems] = useState([]);
 
+  const [subTaskIds, setSubTaskIds] = useState(model?.subTaskIds || []);
+  const [availableTaskModels, setAvailableTaskModels] = useState([]);
+
+  // 🔹 Question Blueprint metadata
+  const [blueprint, setBlueprint] = useState(
+    model?.questionBlueprint || {
+      type: "mcq",
+      interaction: "click",
+      layout: "single",
+      mediaSupport: [],
+      responseType: "selected",
+      rubricModelId: "",
+    }
+  );
+
+  const questionTypes = ["mcq", "msq", "open", "numeric", "image", "reading", "data", "simulation"];
+  const interactions = ["click", "drag", "input", "upload"];
+  const layouts = ["single", "composite", "passage_based"];
+  const mediaOptions = ["image", "audio", "video", "dataset"];
+  const responseTypes = ["selected", "constructed", "extended"];
+  
   // Load evidence models
   useEffect(() => {
     fetch("/api/evidenceModels")
@@ -30,6 +51,14 @@ export default function TaskModelForm({ model, onSave, onCancel, notify }) {
       .then((data) => setAvailableItems(data || []));
   }, []);
 
+  // Load task models for sub-task linking
+  useEffect(() => {
+    fetch("/api/taskModels")
+      .then((r) => r.json())
+      .then((data) => setAvailableTaskModels(data || []))
+      .catch(() => setAvailableTaskModels([]));
+  }, []);
+
   // Reset form when model changes
   useEffect(() => {
     if (model) {
@@ -40,6 +69,7 @@ export default function TaskModelForm({ model, onSave, onCancel, notify }) {
       setSelectedEvidenceModels(model.evidenceModelIds || []);
       setExpectedObservations(model.expectedObservations || []);
       setItemMappings(model.itemMappings || []);
+      setSubTaskIds(model.subTaskIds || []);
     }
   }, [model]);
 
@@ -109,6 +139,8 @@ export default function TaskModelForm({ model, onSave, onCancel, notify }) {
       evidenceModelIds: selectedEvidenceModels,
       expectedObservations,
       itemMappings,
+      subTaskIds,
+      questionBlueprint: blueprint,
     };
 
     onSave(taskModel);
@@ -172,7 +204,124 @@ export default function TaskModelForm({ model, onSave, onCancel, notify }) {
         </select>
       </div>
 
-      {/* Evidence model selection (show name, store ID) */}
+      {/* Sub-Tasks */}
+      <div>
+        <label className="block font-medium">Sub-Tasks (Optional)</label>
+        <select
+          multiple
+          className="border p-2 w-full rounded"
+          value={subTaskIds}
+          onChange={(e) =>
+            setSubTaskIds([...e.target.selectedOptions].map((o) => o.value))
+          }
+        >
+          {availableTaskModels
+            .filter((t) => t.id !== model?.id)
+            .map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name || t.id}
+              </option>
+            ))}
+        </select>
+        <p className="text-xs text-gray-500 mt-1">
+          Select one or more existing task models to include as sub-tasks.
+        </p>
+      </div>
+
+      {/* Question Blueprint Section */ }
+      <div className="border-t pt-3 mt-3">
+        <h3 className="font-semibold text-lg mb-2">Question Blueprint (Item Template)</h3>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium">Question Type</label>
+            <select
+              className="border p-2 w-full rounded text-sm"
+              value={blueprint.type}
+              onChange={(e) => setBlueprint({ ...blueprint, type: e.target.value })}
+            >
+              {questionTypes.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Interaction</label>
+            <select
+              className="border p-2 w-full rounded text-sm"
+              value={blueprint.interaction}
+              onChange={(e) => setBlueprint({ ...blueprint, interaction: e.target.value })}
+            >
+              {interactions.map((i) => (
+                <option key={i}>{i}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Layout</label>
+            <select
+              className="border p-2 w-full rounded text-sm"
+              value={blueprint.layout}
+              onChange={(e) => setBlueprint({ ...blueprint, layout: e.target.value })}
+            >
+              {layouts.map((l) => (
+                <option key={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Response Type</label>
+            <select
+              className="border p-2 w-full rounded text-sm"
+              value={blueprint.responseType}
+              onChange={(e) => setBlueprint({ ...blueprint, responseType: e.target.value })}
+            >
+              {responseTypes.map((r) => (
+                <option key={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <label className="block text-sm font-medium">Media Support</label>
+          <div className="flex flex-wrap gap-3 mt-1">
+            {mediaOptions.map((m) => (
+              <label key={m} className="text-sm">
+                <input
+                  type="checkbox"
+                  checked={blueprint.mediaSupport.includes(m)}
+                  onChange={(e) => {
+                    const updated = e.target.checked
+                      ? [...blueprint.mediaSupport, m]
+                      : blueprint.mediaSupport.filter((x) => x !== m);
+                    setBlueprint({ ...blueprint, mediaSupport: updated });
+                  }}
+                />{" "}
+                {m}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <label className="block text-sm font-medium">Rubric Model ID (optional)</label>
+          <input
+            type="text"
+            className="border p-2 w-full rounded text-sm"
+            placeholder="rubric model ID (if applicable)"
+            value={blueprint.rubricModelId}
+            onChange={(e) =>
+              setBlueprint({ ...blueprint, rubricModelId: e.target.value })
+            }
+          />
+        </div>
+      </div>
+      
+      {/* Evidence model selection (show name, store ID) */ }
       <div>
         <p className="font-medium text-sm">Link Evidence Rules:</p>
         {evidenceModels.length > 0 ? (

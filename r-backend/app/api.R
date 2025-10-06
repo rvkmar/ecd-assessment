@@ -1,5 +1,5 @@
-# run_irt_api.R
-# Script to start the IRT API server
+# api.R
+# Script to start the API server
 
 # Source the IRT module
 source("/home/app/modules/irt.R")

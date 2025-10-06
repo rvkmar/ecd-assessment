@@ -34,6 +34,57 @@ function validateExpectedObservations(taskModel, db) {
   return errors;
 }
 
+// 🔹 Helper to validate subTaskIds existence
+function validateSubTasks(taskModel, db) {
+  const errors = [];
+  const allIds = new Set((db.taskModels || []).map((t) => t.id));
+  for (const sid of taskModel.subTaskIds || []) {
+    if (!allIds.has(sid)) {
+      errors.push(`Invalid subTaskId '${sid}' (no matching taskModel found)`);
+    }
+    if (sid === taskModel.id) {
+      errors.push(`Task model cannot reference itself as a sub-task (${sid})`);
+    }
+  }
+  return errors;
+}
+
+// 🔹 Helper to detect circular sub-task references
+function detectCircularSubTasks(taskModel, db) {
+  const graph = new Map();
+
+  // Build adjacency map
+  for (const tm of db.taskModels || []) {
+    graph.set(tm.id, new Set(tm.subTaskIds || []));
+  }
+
+  // Depth-first traversal to detect cycles
+  const visited = new Set();
+  const stack = new Set();
+
+  function dfs(nodeId) {
+    if (stack.has(nodeId)) return true; // cycle found
+    if (visited.has(nodeId)) return false;
+
+    visited.add(nodeId);
+    stack.add(nodeId);
+
+    const children = graph.get(nodeId) || [];
+    for (const child of children) {
+      if (dfs(child)) return true;
+    }
+
+    stack.delete(nodeId);
+    return false;
+  }
+
+  // Run DFS starting from this task model
+  const hasCycle = dfs(taskModel.id);
+  return hasCycle
+    ? [`Circular reference detected starting at '${taskModel.id}'`]
+    : [];
+}
+
 // 🔹 Helper to validate itemMappings
 function validateItemMappings(taskModel) {
   const errors = [];
@@ -70,7 +121,34 @@ router.get("/:id", (req, res) => {
   const db = loadDB();
   const tm = db.taskModels?.find((m) => m.id === req.params.id);
   if (!tm) return res.status(404).json({ error: "TaskModel not found" });
-  res.json(tm);
+  
+  // 🔹 Expand sub-task details inline
+  const expandSubTasks = (taskModel, db, depth = 0) => {
+    if (!taskModel.subTaskIds || taskModel.subTaskIds.length === 0) return [];
+    if (depth > 3) return []; // prevent runaway recursion
+
+    return taskModel.subTaskIds.map((sid) => {
+      const sub = db.taskModels.find((t) => t.id === sid);
+      if (!sub) return { id: sid, missing: true };
+      return {
+        id: sub.id,
+        name: sub.name,
+        description: sub.description,
+        difficulty: sub.difficulty,
+        evidenceModelIds: sub.evidenceModelIds || [],
+        expectedObservations: sub.expectedObservations || [],
+        itemMappings: sub.itemMappings || [],
+        subTasks: expandSubTasks(sub, db, depth + 1),
+      };
+    });
+  };
+
+  const expanded = {
+    ...tm,
+    expandedSubTasks: expandSubTasks(tm, db),
+  };
+
+  res.json(expanded);
 });
 
 // ------------------------------
@@ -136,6 +214,18 @@ router.post("/", (req, res) => {
     return res.status(400).json({ error: "Invalid itemMappings", details: mappingErrors });
   }
 
+  // ✅ Validate subTaskIds
+  const subTaskErrors = validateSubTasks(newTaskModel, db);
+  if (subTaskErrors.length > 0) {
+    return res.status(400).json({ error: "Invalid subTaskIds", details: subTaskErrors });
+  }
+
+  // ✅ Detect circular reference
+  const cycleErrors = detectCircularSubTasks(newTaskModel, db);
+  if (cycleErrors.length > 0) {
+    return res.status(400).json({ error: "Circular sub-task reference", details: cycleErrors });
+  }
+
   if (!db.taskModels) db.taskModels = [];
   db.taskModels.push(newTaskModel);
   saveDB(db);
@@ -176,6 +266,18 @@ router.put("/:id", (req, res) => {
     return res.status(400).json({ error: "Invalid itemMappings", details: mappingErrors });
   }
 
+  // ✅ Sub-Task validation
+  const subTaskErrors = validateSubTasks(updatedTaskModel, db);
+  if (subTaskErrors.length > 0) {
+    return res.status(400).json({ error: "Invalid subTaskIds", details: subTaskErrors });
+  }
+
+  // ✅ Detect circular reference in updated structure
+  const cycleErrors = detectCircularSubTasks(updatedTaskModel, db);
+  if (cycleErrors.length > 0) {
+    return res.status(400).json({ error: "Circular sub-task reference", details: cycleErrors });
+  }
+  
   db.taskModels[idx] = updatedTaskModel;
   saveDB(db);
   res.json(updatedTaskModel);

@@ -11,10 +11,14 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
     name: "",
   });
 
+  const [taskModels, setTaskModels] = useState([]);
+  const [expandedStates, setExpandedStates] = useState({}); // track expand/collapse state
+
   useEffect(() => {
     Promise.all([
       fetch("/api/evidenceModels").then((res) => res.json()),
       fetch("/api/questions").then((res) => res.json()),
+      fetch("/api/taskModels").then((res) => res.json()),
     ])
       .then(([ems, qs]) => {
         setEvidenceModels(ems || []);
@@ -32,6 +36,41 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
   const getQuestionText = (id) => {
     const q = questions.find((qq) => qq.id === id);
     return q ? (q.stem || q.text || q.id) : null;
+  };
+
+  // Toggle expand/collapse
+  const toggleExpand = (id) =>
+    setExpandedStates((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // Recursive renderer for sub-task tree
+  const renderSubTaskTree = (subs, depth = 0) => {
+    if (!subs || subs.length === 0) return null;
+    return (
+      <ul className={`list-disc ml-${depth > 0 ? 5 : 0}`}>
+        {subs.map((sub) => (
+          <li key={sub.id} className="mt-1">
+            <div className="flex items-center space-x-1">
+              {sub.subTasks?.length > 0 && (
+                <button
+                  type="button"
+                  className="text-blue-600 font-bold"
+                  onClick={() => toggleExpand(sub.id)}
+                >
+                  {expandedStates[sub.id] ? "▾" : "▸"}
+                </button>
+              )}
+              <span className="font-medium">{sub.name || sub.id}</span>{" "}
+              <span className="text-gray-500 text-xs">({sub.id})</span>
+            </div>
+
+            {sub.description && (
+              <div className="ml-6 text-gray-600 text-sm">{sub.description}</div>
+            )}
+            {expandedStates[sub.id] && renderSubTaskTree(sub.subTasks, depth + 1)}
+          </li>
+        ))}
+      </ul>
+    );
   };
 
   if (!models || models.length === 0) {
@@ -134,6 +173,14 @@ export default function TaskModelList({ models, onEdit, onDelete }) {
                     );
                   })}
                 </ul>
+              </div>
+            )}
+
+            {/* Sub-Tasks */}
+            {m.expandedSubTasks?.length > 0 && (
+              <div className="mt-2">
+                <h4 className="text-sm font-medium">Sub-Tasks:</h4>
+                {renderSubTaskTree(m.expandedSubTasks)}
               </div>
             )}
 

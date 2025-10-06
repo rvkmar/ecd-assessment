@@ -138,6 +138,24 @@ export const schema = {
 
     itemMappings: 'array', // [{ itemId, observationId, evidenceId }]
 
+    // Optional question blueprint metadata (acts as item type descriptor)
+    questionBlueprint: 'object', // {
+    //   "type": "mcq" | "msq" | "open" | "numeric" | "image" | "reading" | "data" | "simulation",
+    //   "interaction": "click" | "drag" | "input" | "upload",
+    //   "layout": "single" | "composite" | "passage_based",
+    //   "mediaSupport": ["image", "audio", "video", "dataset"],
+    //   "responseType": "selected" | "constructed" | "extended",
+    //   "rubricModelId": "optional_rubric_reference"
+    // }
+
+    // Example:
+    // questionBlueprint: {
+    //   type: "image-mcq",
+    //   interaction: "click",
+    //   layout: "single",
+    //   mediaSupport: ["image"],
+    //   responseType: "selected"
+    // },
     createdAt: 'date',
     updatedAt: 'date',
   },

@@ -8,6 +8,9 @@ export default function TaskDetails({ task, onClose }) {
   const [question, setQuestion] = useState(null);
   const [evidenceModels, setEvidenceModels] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [competencyModels, setCompetencyModels] = useState([]);
+
+  const [taskModels, setTaskModels] = useState([])
 
   useEffect(() => {
     if (task?.taskModelId) {
@@ -26,6 +29,13 @@ export default function TaskDetails({ task, onClose }) {
     fetch("/api/questions")
       .then((r) => r.json())
       .then((data) => setQuestions(data || []));
+    fetch("/api/taskModels")
+      .then((r) => r.json())
+      .then((data) => setTaskModels(data || []))
+      .catch(() => setTaskModels([]));    
+    fetch("/api/competencyModels")
+      .then((r) => r.json())
+      .then((data) => setCompetencyModels(data || []));
   }, [task]);
 
   if (!task) return null;
@@ -51,6 +61,23 @@ export default function TaskDetails({ task, onClose }) {
   const getQuestionText = (id) => {
     const q = questions.find((qq) => qq.id === id);
     return q ? (q.stem || q.text || q.id) : id;
+  };
+
+  const getTaskModel = (id) => taskModels.find((t) => t.id === id);
+
+  // Helper to resolve competency names through Evidence → Constructs
+  const getLinkedCompetencies = (taskModel) => {
+    if (!taskModel?.evidenceModelIds) return [];
+    const compSet = new Set();
+    for (const emId of taskModel.evidenceModelIds) {
+      const em = evidenceModels.find((e) => e.id === emId);
+      if (!em) continue;
+      for (const c of em.constructs || []) {
+        const comp = competencyModels.find((cm) => cm.id === c.competencyId);
+        if (comp) compSet.add(comp.name || comp.id);
+      }
+    }
+    return Array.from(compSet);
   };
 
   // Group runtime captures by evidence model
@@ -112,6 +139,44 @@ export default function TaskDetails({ task, onClose }) {
               <strong>Actions:</strong>{" "}
               {taskModel.actions?.length ? taskModel.actions.join(", ") : "-"}
             </p>
+
+            {/* Sub-Tasks (Composite Activities) */}
+            {taskModel.subTaskIds?.length > 0 && (
+              <div className="mt-3">
+                <h4 className="font-semibold">Sub-Tasks</h4>
+                <ul className="list-disc ml-5">
+                  {taskModel.subTaskIds.map((sid) => {
+                    const sub = getTaskModel(sid);
+                    return (
+                      <li key={sid}>
+                        <span className="font-medium">{sub?.name || sid}</span>{" "}
+                        <span className="text-gray-500">({sid})</span>
+                        {sub?.description && (
+                          <div className="text-sm text-gray-600 ml-2">
+                            {sub.description}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+            {/* Linked Competencies */}
+            <h4 className="mt-3 font-semibold">Linked Competencies</h4>
+            {(() => {
+              const comps = getLinkedCompetencies(taskModel);
+              if (comps.length === 0) {
+                return <p className="text-sm text-gray-500">No linked competencies found</p>;
+              }
+              return (
+                <ul className="list-disc ml-5 text-sm text-gray-700">
+                  {comps.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              );
+            })()}            
           </>
         )}
 

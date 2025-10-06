@@ -10,11 +10,13 @@ export default function TaskModelDetails({ taskModel, onClose }) {
   useEffect(() => {
     fetch("/api/evidenceModels")
       .then((r) => r.json())
-      .then((data) => setEvidenceModels(data || []));
+      .then((data) => setEvidenceModels(data || []))
+      .catch(() => setEvidenceModels([]));
 
     fetch("/api/questions")
       .then((r) => r.json())
-      .then((data) => setQuestions(data || []));
+      .then((data) => setQuestions(data || []))
+      .catch(() => setQuestions([]));
   }, []);
 
   if (!taskModel) return null;
@@ -41,6 +43,28 @@ export default function TaskModelDetails({ taskModel, onClose }) {
   const getQuestionText = (id) => {
     const q = questions.find((qq) => qq.id === id);
     return q ? (q.stem || q.text || q.id) : id;
+  };
+
+
+  // 🔹 Recursive renderer for sub-tasks (expanded from backend)
+  const renderSubTasks = (subs, level = 0) => {
+    if (!subs || subs.length === 0) return null;
+    return (
+      <ul className="list-disc ml-5">
+        {subs.map((sub) => (
+          <li key={sub.id}>
+            <span className="font-medium">{sub.name || sub.id}</span>{" "}
+            <span className="text-gray-500">({sub.id})</span>
+            {sub.description && (
+              <div className="text-sm text-gray-600 ml-2">
+                {sub.description}
+              </div>
+            )}
+            {sub.subTasks?.length > 0 && renderSubTasks(sub.subTasks, level + 1)}
+          </li>
+        ))}
+      </ul>
+    );
   };
 
   return (
@@ -137,14 +161,8 @@ export default function TaskModelDetails({ taskModel, onClose }) {
 
         {/* Sub-Tasks */}
         <h4 className="mt-3 font-semibold">Sub-Tasks</h4>
-        {taskModel.subTaskIds?.length > 0 ? (
-          <ul className="list-disc ml-5">
-            {taskModel.subTaskIds.map((id) => (
-              <li key={id}>
-                <code>{id}</code>
-              </li>
-            ))}
-          </ul>
+        {taskModel.expandedSubTasks?.length > 0 ? (
+          renderSubTasks(taskModel.expandedSubTasks)
         ) : (
           <p className="text-sm text-gray-500">None</p>
         )}
