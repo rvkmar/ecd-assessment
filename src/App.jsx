@@ -16,6 +16,9 @@ import StudentDashboard from "./pages/StudentDashboard";
 import TeachersManager from "./pages/TeachersManager";
 import StudentsManager from "./pages/StudentsManager";
 
+// 🔹 Add import for PolicyManager
+import { PolicyManager } from "./components/policies/PolicyManager";
+
 // Existing feature pages
 import QuestionBank from "./components/questions/QuestionBank";
 import CompetencyModelBuilder from "./components/competencies/CompetencyModelBuilder";
@@ -52,6 +55,9 @@ export default function App() {
                     {/* Add more admin-only tools here */}
                     <Route path="teachers" element={<TeachersManager />} />
                     <Route path="students" element={<StudentsManager />} />
+
+                    {/* 🔹 New: Admin can manage adaptive policies */}
+                    <Route path="policies" element={<PolicyManager />} />                    
                   </Routes>
                 </ProtectedRoute>
               }

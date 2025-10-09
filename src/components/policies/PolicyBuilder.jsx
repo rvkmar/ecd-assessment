@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import toast from "react-hot-toast";
 
 export function PolicyBuilder({ policy, onCancel, onSaved }) {
   const [name, setName] = useState(policy?.name || "");
@@ -37,10 +38,11 @@ export function PolicyBuilder({ policy, onCancel, onSaved }) {
       });
 
       if (!res.ok) throw new Error("Failed to save policy");
-      onSaved();
+        toast.success(`Policy ${policy ? "updated" : "created"} successfully!`);
+        onSaved();
     } catch (err) {
       console.error("Error saving policy:", err);
-      alert("Failed to save policy. Check console for details.");
+      toast.error("Failed to save policy. Check console for details.");
     } finally {
       setSaving(false);
     }

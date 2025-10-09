@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
 
 // SessionForm.jsx
 // Props:
@@ -17,6 +28,38 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
   const [policies, setPolicies] = useState([]);
   const [policyId, setPolicyId] = useState(model.nextTaskPolicy?.policyId || "");
   const [busy, setBusy] = useState(false);
+  const ACTIVITY_STRATEGIES = [
+    {
+      group: "Basic Strategy",
+      options: [
+        {
+          value: "fixed",
+          label: "Fixed Order (Same for Everyone)",
+          description: "Students receive activities in a fixed, pre-set sequence."
+        }
+      ]
+    },
+    {
+      group: "Adaptive Strategies",
+      options: [
+        {
+          value: "IRT",
+          label: "Adaptive by Performance (Smart Difficulty)",
+          description: "Each next activity is chosen based on student performance using Item Response Theory."
+        },
+        {
+          value: "BayesianNetwork",
+          label: "Skill-based Adaptive (Using Learning Map)",
+          description: "Activities adapt based on mastery of linked skills inferred through a Bayesian network model."
+        },
+        {
+          value: "MarkovChain",
+          label: "Pattern-based Adaptive (Learning Flow)",
+          description: "Next activity predicted from learning patterns using a Markov chain."
+        }
+      ]
+    }
+  ];
 
   // const notify = (msg, type = "info") => {
   //   if (type === "success") toast.success(msg);
@@ -157,41 +200,77 @@ export default function SessionForm({ model = {}, students = [], tasks = [], onS
       </div>
 
       <div>
-        <label className="block font-medium">Activity Selection Strategy</label>
-        <select
-          value={selectionStrategy}
-          onChange={(e) => handleStrategyChange(e.target.value)}
-          className="border p-2 rounded w-full"
-        >
-          <option value="fixed">Fixed (sequential)</option>
-          <option value="IRT">IRT (adaptive)</option>
-          <option value="BayesianNetwork">Bayesian Network (adaptive)</option>
-          <option value="MarkovChain">Markov Chain (adaptive)</option>
-        </select>
+        <label className="block font-medium mb-1">Activity Selection Strategy</label>
+
+        <Select value={selectionStrategy} onValueChange={handleStrategyChange}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select activity selection strategy" />
+          </SelectTrigger>
+          <SelectContent>
+            {ACTIVITY_STRATEGIES.map((group) => (
+              <SelectGroup key={group.group}>
+                <SelectLabel>{group.group}</SelectLabel>
+                {group.options.map((opt) => (
+                  <TooltipProvider key={opt.value}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SelectItem value={opt.value}>{opt.label}</SelectItem>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs text-sm">
+                        {opt.description}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {selectionStrategy !== "fixed" && (
         <div>
-          <label className="block font-medium">Select Assessment Policy</label>
-          <select
-            value={policyId}
-            onChange={(e) => setPolicyId(e.target.value)}
-            className="border p-2 rounded w-full"
-          >
-            <option value="">-- Select from Admin-defined policies --</option>
-            {policies
-              .filter((p) => p.type === selectionStrategy)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.type})
-                </option>
-              ))}
-          </select>
+          <label className="block font-medium mb-1">Select Assessment Policy</label>
+
+          <Select value={policyId} onValueChange={setPolicyId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a policy defined by Admin" />
+            </SelectTrigger>
+            <SelectContent>
+              {["IRT", "BayesianNetwork", "MarkovChain"].map((strategyType) => {
+                const groupPolicies = policies.filter((p) => p.type === strategyType);
+                if (groupPolicies.length === 0) return null;
+                return (
+                  <SelectGroup key={strategyType}>
+                    <SelectLabel>
+                      {strategyType === "IRT" && "IRT-based Policies"}
+                      {strategyType === "BayesianNetwork" && "Bayesian Network Policies"}
+                      {strategyType === "MarkovChain" && "Markov Chain Policies"}
+                    </SelectLabel>
+                    {groupPolicies.map((p) => (
+                      <TooltipProvider key={p.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <SelectItem value={p.id}>{p.name}</SelectItem>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs text-sm">
+                            {p.description || "No description provided by Admin."}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
+            </SelectContent>
+          </Select>
+
           <p className="text-xs text-gray-400 mt-1">
             Only Admin can add or modify policies.
           </p>
         </div>
       )}
+
 
       <div className="flex space-x-2">
         <button type="submit" disabled={busy} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save Session</button>
