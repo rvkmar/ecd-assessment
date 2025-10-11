@@ -11,6 +11,9 @@ import Spinner from "../components/ui/Spinner";
 import toast from "react-hot-toast";
 
 import QuestionBankTabs from "@/components/questions/QuestionBankTabs";
+import CompetencyModelBuilder from "@/components/competencies/CompetencyModelBuilder";
+import EvidenceModelBuilder from "@/components/evidences/EvidenceModelBuilder";
+import TaskModelBuilder from "@/components/taskModels/TaskModelBuilder"
 
 // Reusable placeholder table
 function PlaceholderTable({ columns }) {
