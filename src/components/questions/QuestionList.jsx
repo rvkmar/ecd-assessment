@@ -72,6 +72,36 @@ export default function QuestionList({ notify, onEdit }) {
     return matchSearch && matchSubject && matchGrade && matchStatus;
   });
 
+  // ---------------------------
+  // Role-based lifecycle control
+  // ---------------------------
+  const role = localStorage.getItem("role") || "teacher";
+
+  const handleLifecycleAction = async (id, action) => {
+    try {
+      const res = await fetch(`/api/questions/${id}/lifecycle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, userId: role }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed");
+      }
+      const updated = await res.json();
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === id ? { ...q, ...updated } : q))
+      );
+      calculateStats(
+        questions.map((q) => (q.id === id ? { ...q, ...updated } : q))
+      );
+      notify?.(`✅ ${action} successful`);
+    } catch (err) {
+      console.error(err);
+      notify?.(`❌ Failed to ${action}: ${err.message}`);
+    }
+  };
+
   // --- Group reading sets ---
   const readingSets = filtered
     .filter((q) => q.type === "reading")
@@ -236,6 +266,41 @@ export default function QuestionList({ notify, onEdit }) {
                     >
                       Delete
                     </button>
+                  {/* 🔹 Lifecycle Buttons by Role */}
+                  {role === "teacher" && parent.status === "new" && (
+                    <button
+                      onClick={() => handleLifecycleAction(parent.id, "review")}
+                      className="bg-yellow-500 text-white px-2 py-1 rounded"
+                    >
+                      Send for Review
+                    </button>
+                  )}
+                  {role === "district" && parent.status === "review" && (
+                    <button
+                      onClick={() => handleLifecycleAction(parent.id, "activate")}
+                      className="bg-green-600 text-white px-2 py-1 rounded"
+                    >
+                      Approve (Activate)
+                    </button>
+                  )}
+                  {role === "admin" && parent.status === "active" && (
+                    <button
+                      onClick={() => handleLifecycleAction(parent.id, "retire")}
+                      className="bg-gray-500 text-white px-2 py-1 rounded"
+                    >
+                      Retire
+                    </button>
+                  )}
+                  {role === "admin" && parent.status === "retired" && (
+                    <button
+                      onClick={() =>
+                        handleLifecycleAction(parent.id, "reactivate")
+                      }
+                      className="bg-blue-500 text-white px-2 py-1 rounded"
+                    >
+                      Reactivate
+                    </button>
+                  )}                    
                   </td>
                 </tr>
 
@@ -322,6 +387,39 @@ export default function QuestionList({ notify, onEdit }) {
                   >
                     Delete
                   </button>
+                  {/* 🔹 Lifecycle Buttons for individual questions */}
+                  {role === "teacher" && q.status === "new" && (
+                    <button
+                      onClick={() => handleLifecycleAction(q.id, "review")}
+                      className="bg-yellow-500 text-white px-2 py-1 rounded"
+                    >
+                      Send for Review
+                    </button>
+                  )}
+                  {role === "district" && q.status === "review" && (
+                    <button
+                      onClick={() => handleLifecycleAction(q.id, "activate")}
+                      className="bg-green-600 text-white px-2 py-1 rounded"
+                    >
+                      Approve
+                    </button>
+                  )}
+                  {role === "admin" && q.status === "active" && (
+                    <button
+                      onClick={() => handleLifecycleAction(q.id, "retire")}
+                      className="bg-gray-500 text-white px-2 py-1 rounded"
+                    >
+                      Retire
+                    </button>
+                  )}
+                  {role === "admin" && q.status === "retired" && (
+                    <button
+                      onClick={() => handleLifecycleAction(q.id, "reactivate")}
+                      className="bg-blue-500 text-white px-2 py-1 rounded"
+                    >
+                      Reactivate
+                    </button>
+                  )}                  
                 </td>
               </tr>
             ))}

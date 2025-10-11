@@ -136,6 +136,68 @@ router.put("/:id", (req, res) => {
 });
 
 // ------------------------------
+// PATCH /api/questions/:id/lifecycle
+// Update question lifecycle (promote, retire, reactivate)
+// ------------------------------
+router.patch("/:id/lifecycle", (req, res) => {
+  const { id } = req.params;
+  const { action, userId } = req.body; // action: review|activate|retire|reactivate
+  const db = loadDB();
+  const question = db.questions?.find((q) => q.id === id);
+  if (!question) return res.status(404).json({ error: "Question not found" });
+
+  switch (action) {
+    case "review":
+      question.status = "review";
+      break;
+    case "activate":
+      question.status = "active";
+      question.modifier = userId || "district_user";
+      break;
+    case "retire":
+      question.status = "retired";
+      break;
+    case "reactivate":
+      if ((question.reactivationCount || 0) < (question.maxReactivations || 2)) {
+        question.status = "active";
+        question.reactivationCount = (question.reactivationCount || 0) + 1;
+      } else {
+        return res.status(400).json({ error: "Max reactivations reached" });
+      }
+      break;
+    default:
+      return res.status(400).json({ error: "Invalid action" });
+  }
+
+  question.updatedAt = new Date().toISOString();
+  saveDB(db);
+  res.json(question);
+});
+
+// ------------------------------
+// POST /api/questions/:id/sync-irt
+// Called by R backend to update IRT parameters (a,b,c)
+// ------------------------------
+router.post("/:id/sync-irt", (req, res) => {
+  const { id } = req.params;
+  const { a, b, c } = req.body;
+  const db = loadDB();
+  const question = db.questions?.find((q) => q.id === id);
+  if (!question) return res.status(404).json({ error: "Question not found" });
+
+  question.irtParams = {
+    a: Number(a) || question.irtParams?.a || 1.0,
+    b: Number(b) || question.irtParams?.b || 0.0,
+    c: Number(c) || question.irtParams?.c || 0.2,
+    updatedAt: new Date().toISOString(),
+    source: "R-backend",
+  };
+
+  saveDB(db);
+  res.json({ success: true, irtParams: question.irtParams });
+});
+
+// ------------------------------
 // DELETE /api/questions/:id
 // ------------------------------
 router.delete("/:id", (req, res) => {

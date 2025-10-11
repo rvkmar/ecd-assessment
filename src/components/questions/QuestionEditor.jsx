@@ -129,6 +129,12 @@ export default function QuestionEditor({ notify }) {
       dataSchema: {},
     },
     status: "new",
+    creator: localStorage.getItem("userId") || "teacher_user",
+    usageCount: 0,
+    maxUsageBeforeRetire: 5,
+    reactivationCount: 0,
+    maxReactivations: 2,
+    irtParams: { a: 1.0, b: 0.0, c: 0.2, updatedAt: null, source: "local" },
   });
 
   // ✅ Prepare Question for Save — schema-compliant, auto IDs + reading linkage
@@ -669,33 +675,142 @@ export default function QuestionEditor({ notify }) {
         {/* Lifecycle */}
         <div>
           <label className="font-medium text-sm">Status</label>
-          <select
-            value={q.status}
-            onChange={(e) => updateField("status", e.target.value)}
-            className="w-full border p-2 rounded text-sm"
-          >
-            {statuses.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
+          {(() => {
+            const role = localStorage.getItem("role") || "teacher";
+            const canEditStatus = ["admin", "district"].includes(role);
+            return (
+              <>
+                <select
+                  value={q.status}
+                  onChange={(e) => updateField("status", e.target.value)}
+                  disabled={!canEditStatus}
+                  className="w-full border p-2 rounded text-sm bg-white"
+                >
+                  {statuses.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
 
-          {/* quick transitions */}
-          <div className="mt-2 space-x-2">
-            <button
-              type="button"
-              onClick={() => updateField("status", "active")}
-              className="bg-green-600 text-white px-2 py-1 rounded"
-            >
-              Mark Active
-            </button>
-            <button
-              type="button"
-              onClick={() => updateField("status", "retired")}
-              className="bg-gray-600 text-white px-2 py-1 rounded"
-            >
-              Archive
-            </button>
+                <div className="text-xs text-gray-500 mt-1">
+                  {canEditStatus
+                    ? "You can modify the status"
+                    : "Status controlled by District/Admin"}
+                </div>
+
+                {/* Quick admin actions */}
+                {role === "admin" && (
+                  <div className="mt-2 space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => updateField("status", "active")}
+                      className="bg-green-600 text-white px-2 py-1 rounded"
+                    >
+                      Mark Active
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateField("status", "retired")}
+                      className="bg-gray-600 text-white px-2 py-1 rounded"
+                    >
+                      Archive
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {/* Creator / Modifier display */}
+          <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-gray-600 bg-gray-50 border p-2 rounded">
+            <div>
+              <strong>Creator:</strong> {q.creator || "—"}
+            </div>
+            <div>
+              <strong>Modifier:</strong> {q.modifier || "—"}
+            </div>
+            <div>
+              <strong>Usage Count:</strong> {q.usageCount || 0}
+            </div>
+            <div>
+              <strong>Reactivations:</strong>{" "}
+              {(q.reactivationCount || 0) + " / " + (q.maxReactivations || 2)}
+            </div>
           </div>
+        </div>
+
+        {/* 🔹 IRT Parameters section */}
+        <div className="border-t pt-3 mt-3">
+          <h4 className="font-medium">IRT Parameters (from R Backend)</h4>
+          <div className="grid grid-cols-4 gap-3 text-sm">
+            <div>
+              <label>a (Discrimination)</label>
+              <Input
+                type="number"
+                value={q.irtParams?.a || ""}
+                onChange={(e) =>
+                  updateField("irtParams", {
+                    ...q.irtParams,
+                    a: parseFloat(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label>b (Difficulty)</label>
+              <Input
+                type="number"
+                value={q.irtParams?.b || ""}
+                onChange={(e) =>
+                  updateField("irtParams", {
+                    ...q.irtParams,
+                    b: parseFloat(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label>c (Guessing)</label>
+              <Input
+                type="number"
+                value={q.irtParams?.c || ""}
+                onChange={(e) =>
+                  updateField("irtParams", {
+                    ...q.irtParams,
+                    c: parseFloat(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
+            <div className="flex flex-col justify-end">
+              <button
+                type="button"
+                className="bg-blue-600 text-white px-3 py-1 rounded"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/questions/${q.id}/sync-irt`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(q.irtParams),
+                    });
+                    if (!res.ok) throw new Error("Sync failed");
+                    const data = await res.json();
+                    updateField("irtParams", data.irtParams);
+                    notify?.("✅ Synced IRT parameters from R backend");
+                  } catch (err) {
+                    notify?.("❌ IRT sync failed: " + err.message);
+                  }
+                }}
+              >
+                Sync from R
+              </button>
+            </div>
+          </div>
+
+          {q.irtParams?.updatedAt && (
+            <div className="text-xs text-gray-500 mt-1">
+              Last updated: {new Date(q.irtParams.updatedAt).toLocaleString()}
+            </div>
+          )}
         </div>
 
         {/* Save/Delete */}

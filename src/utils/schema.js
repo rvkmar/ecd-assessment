@@ -31,6 +31,14 @@ export const schema = {
     // Workflow / Lifecycle
     status: 'string',           // "new" | "review" | "active" | "retired"
 
+    // 🔹 Lifecycle Control Metadata
+    creator: 'string',           // userId who created the question (Teacher)
+    modifier: 'string',          // userId who last promoted or changed lifecycle
+    usageCount: 'number',        // number of times question used in sessions
+    maxUsageBeforeRetire: 'number', // admin-defined policy threshold
+    reactivationCount: 'number',  // number of times reactivated after retirement
+    maxReactivations: 'number',   // admin-defined max reactivation limit
+
     // 🔹 Metadata (curriculum + cognitive)
     metadata: {
       subject: 'string',        // "Mathematics", "Science"
@@ -52,6 +60,8 @@ export const schema = {
       a: 'number',              // discrimination
       b: 'number',              // difficulty
       c: 'number',              // guessing (optional)
+      updatedAt: 'date',        // last sync timestamp
+      source: 'string'          // e.g. "R-backend"
     },
 
     createdAt: 'date',
@@ -383,6 +393,25 @@ export function validateEntity(collection, obj, db = null) {
     // 🔹 Lifecycle status validation
     if (obj.status && !["new", "review", "active", "retired"].includes(obj.status)) {
       errors.push("status must be one of: new, review, active, retired");
+    }
+
+    // 🔹 Lifecycle and usage policy validation
+    if (obj.usageCount !== undefined && typeof obj.usageCount !== "number") {
+      errors.push("usageCount must be number");
+    }
+    if (obj.maxUsageBeforeRetire !== undefined && typeof obj.maxUsageBeforeRetire !== "number") {
+      errors.push("maxUsageBeforeRetire must be number");
+    }
+    if (obj.reactivationCount !== undefined && typeof obj.reactivationCount !== "number") {
+      errors.push("reactivationCount must be number");
+    }
+    if (obj.maxReactivations !== undefined && typeof obj.maxReactivations !== "number") {
+      errors.push("maxReactivations must be number");
+    }
+
+    // 🔹 Auto-retire enforcement
+    if (obj.status === "active" && obj.usageCount >= obj.maxUsageBeforeRetire) {
+      errors.push("question exceeds maxUsageBeforeRetire — should be retired");
     }
 
     // 🔹 Metadata validation

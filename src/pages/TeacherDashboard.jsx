@@ -45,10 +45,10 @@ export default function TeacherDashboard() {
         <DashboardLayout
           title="Teacher Dashboard"
           tabs={[
-            { id: "questions", label: "QuestionBank", content: <QuestionBankTabs /> },
-            { id: "activities", label: "Activities", content: <TasksManager /> },
-            { id: "sessions", label: "Sessions", content: <SessionBuilder /> },
-            { id: "analytics", label: "Analytics", content: <AnalyticsPanel /> },
+            { id: "questions", label: "QuestionBank", content: <QuestionBankTabs />, entity: "questions" },
+            { id: "activities", label: "Activities", content: <TasksManager />, entity: "tasks" },
+            { id: "sessions", label: "Sessions", content: <SessionBuilder />, entity: "sessions" },
+            { id: "analytics", label: "Analytics", content: <AnalyticsPanel />, entity: "reports" },
           ]}
         />
       // {/* </div> */}

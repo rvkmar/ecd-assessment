@@ -8,15 +8,28 @@ services:
     container_name: ecd-node
     environment:
       - NODE_ENV=production
-      - ECD_DB_FILE=/data/db.json
+      - DB_MODE=mongo
+      - MONGO_URI=mongodb://mongo:27017/ecd_assessment
+      - JWT_SECRET=super_secret_key
+      - TOKEN_EXPIRES_IN=8h
       - R_BACKEND_URL=http://r-backend:4000
     depends_on:
+      - mongo
       - r-backend
     volumes:
       - ecd_data:/data
     expose:
       - "3000"
     restart: always
+
+  mongo:
+    image: mongo:6.0
+    container_name: ecd-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
 
   r-backend:
     image: rvkmar/r-backend:latest 
@@ -39,3 +52,4 @@ services:
 
 volumes:
   ecd_data:
+  mongo_data:

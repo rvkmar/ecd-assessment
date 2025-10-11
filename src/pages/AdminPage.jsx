@@ -68,50 +68,11 @@ export default function AdminPage() {
     <DashboardLayout
       title="Admin Dashboard"
       tabs={[
-        // {
-        //   id: "competencies",
-        //   label: "Competencies",
-        //   content: (
-        //     <>
-        //       <Button className="mb-4">+ Add Competency Model</Button>
-        //       <PlaceholderTable columns={["ID", "Name", "Version", "Status", "Actions"]} />
-        //     </>
-        //   ),
-        // },
-        // {
-        //   id: "evidence",
-        //   label: "Evidence",
-        //   content: (
-        //     <>
-        //       <Button className="mb-4">+ Add Evidence Rule</Button>
-        //       <PlaceholderTable columns={["ID", "Name", "Type", "Linked Competency", "Actions"]} />
-        //     </>
-        //   ),
-        // },
-        // {
-        //   id: "tasks",
-        //   label: "Tasks",
-        //   content: (
-        //     <>
-        //       <Button className="mb-4">+ Add Activity Template</Button>
-        //       <PlaceholderTable columns={["ID", "Name", "Linked Evidence", "Difficulty", "Status", "Actions"]} />
-        //     </>
-        //   ),
-        // },
-        // {
-        //   id: "sessions",
-        //   label: "Sessions",
-        //   content: (
-        //     <>
-        //       <Button className="mb-4">+ Create Session</Button>
-        //       <PlaceholderTable columns={["Session ID", "Teacher", "Students", "Status", "Actions"]} />
-        //     </>
-        //   ),
-        // },
         {
           id: "questions",
           label: "Questions",
           content: <QuestionDashboard />,
+          entity: "questions"
         },
         {
           id: "users",
@@ -125,6 +86,7 @@ export default function AdminPage() {
               <PlaceholderTable columns={["User ID", "Name", "Role", "District/Class", "Actions"]} />
             </div>
           ),
+          entity: "teachers"
         },
         {
           id: "policies",
@@ -134,6 +96,7 @@ export default function AdminPage() {
               <PolicyManager />
             </div>
           ),
+          entity: "policies"
         },
         {
           id: "settings",
@@ -153,6 +116,7 @@ export default function AdminPage() {
               <PlaceholderTable columns={["Setting", "Value", "Actions"]} />,
             </div>
           ),
+          entity: "reports"
         },
       ]}
     />

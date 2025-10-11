@@ -10,8 +10,11 @@ COPY server ./server
 COPY src/utils ./src/utils
 
 # Ensure users.json is included
-COPY server/users.json ./server/users.json
+# COPY server/users.json ./server/users.json
 
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["node", "server/index.js"]
+
+# CMD ["node", "server/index.js"]
+
+CMD ["sh", "-c", "echo '⏳ Waiting for MongoDB...' && until nc -z mongo 27017; do sleep 1; done && echo '✅ Mongo ready. Initializing...' && node server/utils/initMongo.js && echo '🚀 Starting API...' && node server/index.js"]

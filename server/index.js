@@ -19,6 +19,7 @@ import reportsRoutes from "./routes/reportsRoutes.js";
 import studentsRoutes from "./routes/studentsRoutes.js";
 import policiesRoutes from "./routes/policiesRoutes.js";
 import calibrationRoutes from "./routes/calibrationRoutes.js";
+import usersRoutes from "./routes/usersRoutes.js";
 
 const app = express();
 app.use(express.json());
@@ -42,50 +43,50 @@ const loginLimiter = rateLimit({
 // ------------------------------
 // LOGIN route (new)
 // ------------------------------
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const USERS_FILE = path.join(__dirname, "users.json");
-let users = [];
-try {
-  users = JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
-  console.log(`✅ Loaded ${users.length} users from users.json`);
-} catch (err) {
-  console.error("⚠️ Could not read users.json", err);
-  users = [];
-}
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// const USERS_FILE = path.join(__dirname, "users.json");
+// let users = [];
+// try {
+//   users = JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
+//   console.log(`✅ Loaded ${users.length} users from users.json`);
+// } catch (err) {
+//   console.error("⚠️ Could not read users.json", err);
+//   users = [];
+// }
 
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key";
+// const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key";
 
-app.post("/api/login", loginLimiter, async (req, res) => {
-  const { username, password, role } = req.body || {};
-  if (!username || !password || !role) {
-    return res
-      .status(400)
-      .json({ error: "username, password and role are required" });
-  }
+// app.post("/api/login", loginLimiter, async (req, res) => {
+//   const { username, password, role } = req.body || {};
+//   if (!username || !password || !role) {
+//     return res
+//       .status(400)
+//       .json({ error: "username, password and role are required" });
+//   }
 
-  const user = users.find((u) => u.username === username && u.role === role);
+//   const user = users.find((u) => u.username === username && u.role === role);
 
-  let isMatch = false;
-  if (user) {
-    try {
-      if (user.password.startsWith("$2")) {
-        isMatch = await bcrypt.compare(password, user.password);
-      } else {
-        isMatch = user.password === password;
-      }
-    } catch {
-      isMatch = false;
-    }
-  }
+//   let isMatch = false;
+//   if (user) {
+//     try {
+//       if (user.password.startsWith("$2")) {
+//         isMatch = await bcrypt.compare(password, user.password);
+//       } else {
+//         isMatch = user.password === password;
+//       }
+//     } catch {
+//       isMatch = false;
+//     }
+//   }
 
-  // ✅ unified error for wrong user/role/password
-  if (!user || !isMatch) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
+//   // ✅ unified error for wrong user/role/password
+//   if (!user || !isMatch) {
+//     return res.status(401).json({ error: "Invalid credentials" });
+//   }
 
-  const token = jwt.sign({ username, role }, JWT_SECRET, { expiresIn: "1h" });
-  return res.json({ token, username, role });
-});
+//   const token = jwt.sign({ username, role }, JWT_SECRET, { expiresIn: "1h" });
+//   return res.json({ token, username, role });
+// });
 
 
 
@@ -120,6 +121,7 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/students", studentsRoutes);
 app.use("/api/policies", policiesRoutes);
 app.use("/api/calibrate", calibrationRoutes);
+app.use("/api", usersRoutes);
 
 // ------------------------------
 // No static serving here! Nginx handles frontend build
