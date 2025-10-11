@@ -46,11 +46,8 @@ export default function DistrictDashboard() {
 
       <DashboardLayout
         title="District Dashboard"
-        tabs={[
+      tabs={[
           { id: "questions", label: "QuestionBank", content: <QuestionBankTabs />, entity: "questions" },
-          { id: "competencies", label: "Competencies", content: <CompetencyModelBuilder />, entity: "competencyModels" },
-          { id: "evidence", label: "Evidences", content: <EvidenceModelBuilder />, entity: "evidenceModels" },
-          { id: "tasks", label: "Activity Templates", content: <TaskModelBuilder />, entity: "taskModels" },
           { id: "activities", label: "Activities", content: <TasksManager />, entity: "tasks" },
           { id: "sessions", label: "Sessions", content: <SessionBuilder />, entity: "sessions" },
           { id: "analytics", label: "Analytics", content: <AnalyticsPanel />, entity: "reports" },

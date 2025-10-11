@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 
 import toast from "react-hot-toast";
 
+import { useAuth } from "@/auth/AuthProvider";
+
 export default function QuestionEditor({ notify }) {
   const [questions, setQuestions] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -91,6 +93,23 @@ export default function QuestionEditor({ notify }) {
     "ordering",
     "matching",
   ];
+
+  // use role from AuthProvider (sessionStorage-backed)
+  const { auth } = useAuth?.() || {};
+  const role =
+    auth?.role ||
+    (() => {
+      try {
+        const raw = sessionStorage.getItem("ecd_auth_v1");
+        return raw ? JSON.parse(raw).role : "teacher";
+      } catch {
+        return "teacher";
+      }
+    })();
+
+  const isAdmin = role === "admin";
+  const isDistrict = role === "district";
+  const isTeacher = role === "teacher";
 
   // load questions
   useEffect(() => {
@@ -557,7 +576,7 @@ export default function QuestionEditor({ notify }) {
               className="bg-blue-600 text-white px-3 py-1 rounded"
               onClick={addOption}
             >
-               Add Option
+              Add Option
             </button>
           </div>
         )}
@@ -623,6 +642,18 @@ export default function QuestionEditor({ notify }) {
         <div className="space-y-2 border-t pt-3">
           <h4 className="font-medium">Metadata</h4>
           <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Expected Answer"
+              value={q.metadata.expectedAnswer}
+              placeholder="Expected Answer"
+              onChange={(e) => updateMeta("expectedAnswer", e.target.value)}
+            />
+            <Input
+              label="Source"
+              value={q.metadata.source}
+              placeholder="Source"
+              onChange={(e) => updateMeta("source", e.target.value)}
+            />
             <SelectField
               label="Subject"
               value={q.metadata.subject}
@@ -659,31 +690,18 @@ export default function QuestionEditor({ notify }) {
               options={soloLevels}
               onChange={(v) => updateMeta("soloLevel", v)}
             />
-            <Input
-              label="Expected Answer"
-              value={q.metadata.expectedAnswer}
-              onChange={(e) => updateMeta("expectedAnswer", e.target.value)}
-            />
-            <Input
-              label="Source"
-              value={q.metadata.source}
-              onChange={(e) => updateMeta("source", e.target.value)}
-            />
           </div>
         </div>
 
-        {/* Lifecycle */}
-        <div>
-          <label className="font-medium text-sm">Status</label>
-          {(() => {
-            const role = localStorage.getItem("role") || "teacher";
-            const canEditStatus = ["admin", "district"].includes(role);
-            return (
-              <>
+        {/* --- Lifecycle / Creator / IRT (role guarded) --- */}
+        {isAdmin ? (
+            <>
+              {/* Lifecycle Section */}          
+              <div className="mt-4">
+                <label className="font-medium text-sm">Status</label>
                 <select
                   value={q.status}
                   onChange={(e) => updateField("status", e.target.value)}
-                  disabled={!canEditStatus}
                   className="w-full border p-2 rounded text-sm bg-white"
                 >
                   {statuses.map((s) => (
@@ -692,127 +710,188 @@ export default function QuestionEditor({ notify }) {
                 </select>
 
                 <div className="text-xs text-gray-500 mt-1">
-                  {canEditStatus
-                    ? "You can modify the status"
-                    : "Status controlled by District/Admin"}
+                  You can modify the question status
                 </div>
 
-                {/* Quick admin actions */}
-                {role === "admin" && (
-                  <div className="mt-2 space-x-2">
+                <div className="mt-2 space-x-2">
+                  {q.status === "review" && (
                     <button
                       type="button"
-                      onClick={() => updateField("status", "active")}
-                      className="bg-green-600 text-white px-2 py-1 rounded"
+                      onClick={() => handleLifecycle("activate")}
+                      className="bg-green-600 text-white px-3 py-1 rounded"
                     >
                       Mark Active
                     </button>
+                  )}
+
+                  {q.status === "active" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleLifecycle("review")}
+                        className="bg-gray-600 text-white px-3 py-1 rounded"
+                      >
+                        Move to Review
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleLifecycle("retire")}
+                        className="bg-red-600 text-white px-3 py-1 rounded"
+                      >
+                        Retire
+                      </button>
+                    </>
+                  )}
+
+                  {q.status === "retired" && (
                     <button
                       type="button"
-                      onClick={() => updateField("status", "retired")}
-                      className="bg-gray-600 text-white px-2 py-1 rounded"
+                      onClick={() => handleLifecycle("activate")}
+                      className="bg-blue-600 text-white px-3 py-1 rounded"
                     >
-                      Archive
+                      Reactivate
                     </button>
-                  </div>
-                )}
-              </>
-            );
-          })()}
+                  )}
+                </div>
+              </div>
 
-          {/* Creator / Modifier display */}
-          <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-gray-600 bg-gray-50 border p-2 rounded">
-            <div>
-              <strong>Creator:</strong> {q.creator || "—"}
+          {/* Creator / Modifier display — admin only */}
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-gray-600 bg-gray-50 border p-2 rounded">
+              <div>
+                <strong>Creator:</strong> {q.creator || "—"}
+              </div>
+              <div>
+                <strong>Modifier:</strong> {q.modifier || "—"}
+              </div>
+              <div>
+                <strong>Usage Count:</strong> {q.usageCount || 0}
+              </div>
+              <div>
+                <strong>Reactivations:</strong>{" "}
+                {(q.reactivationCount || 0) + " / " + (q.maxReactivations || 2)}
+              </div>
             </div>
-            <div>
-              <strong>Modifier:</strong> {q.modifier || "—"}
-            </div>
-            <div>
-              <strong>Usage Count:</strong> {q.usageCount || 0}
-            </div>
-            <div>
-              <strong>Reactivations:</strong>{" "}
-              {(q.reactivationCount || 0) + " / " + (q.maxReactivations || 2)}
-            </div>
-          </div>
-        </div>
 
-        {/* 🔹 IRT Parameters section */}
-        <div className="border-t pt-3 mt-3">
-          <h4 className="font-medium">IRT Parameters (from R Backend)</h4>
-          <div className="grid grid-cols-4 gap-3 text-sm">
-            <div>
-              <label>a (Discrimination)</label>
-              <Input
-                type="number"
-                value={q.irtParams?.a || ""}
-                onChange={(e) =>
-                  updateField("irtParams", {
-                    ...q.irtParams,
-                    a: parseFloat(e.target.value) || 0,
-                  })
-                }
-              />
+        {/* 🔹 IRT Parameters section — visible only for Admin */}
+            <div className="border-t pt-3 mt-3">
+              <h4 className="font-medium">IRT Parameters (from R Backend)</h4>
+              <div className="grid grid-cols-4 gap-3 text-sm">
+                <div>
+                  <label>a (Discrimination)</label>
+                  <Input
+                    type="number"
+                    value={q.irtParams?.a || ""}
+                    onChange={(e) =>
+                      updateField("irtParams", {
+                        ...q.irtParams,
+                        a: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label>b (Difficulty)</label>
+                  <Input
+                    type="number"
+                    value={q.irtParams?.b || ""}
+                    onChange={(e) =>
+                      updateField("irtParams", {
+                        ...q.irtParams,
+                        b: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label>c (Guessing)</label>
+                  <Input
+                    type="number"
+                    value={q.irtParams?.c || ""}
+                    onChange={(e) =>
+                      updateField("irtParams", {
+                        ...q.irtParams,
+                        c: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <button
+                    type="button"
+                    className="bg-blue-600 text-white px-3 py-1 rounded"
+                    onClick={async () => {
+                      try {
+                        notify?.("⏳ Syncing IRT parameters from R backend...");
+                        const res = await fetch(`/api/questions/${q.id}/sync-irt`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                        });
+                        if (!res.ok) throw new Error("Sync failed");
+                        const data = await res.json();
+                        updateField("irtParams", data.irtParams);
+                        notify?.("✅ Synced IRT parameters from R backend");
+                      } catch (err) {
+                        console.error("IRT sync error:", err);
+                        notify?.("❌ IRT sync failed: " + err.message);
+                      }
+                    }}
+                  >
+                    Sync from R
+                  </button>
+                </div>
+              </div>
+
+              {q.irtParams?.updatedAt && (
+                <div className="text-xs text-gray-500 mt-1">
+                  Last updated: {new Date(q.irtParams.updatedAt).toLocaleString()}
+                </div>
+              )}
             </div>
-            <div>
-              <label>b (Difficulty)</label>
-              <Input
-                type="number"
-                value={q.irtParams?.b || ""}
-                onChange={(e) =>
-                  updateField("irtParams", {
-                    ...q.irtParams,
-                    b: parseFloat(e.target.value) || 0,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <label>c (Guessing)</label>
-              <Input
-                type="number"
-                value={q.irtParams?.c || ""}
-                onChange={(e) =>
-                  updateField("irtParams", {
-                    ...q.irtParams,
-                    c: parseFloat(e.target.value) || 0,
-                  })
-                }
-              />
-            </div>
-            <div className="flex flex-col justify-end">
+        </>
+      ) : (
+        <>
+          {/* District / Teacher: do NOT show status dropdown or IRT */}
+          {/* Teacher: offer Send for Review for new questions (new → review) */}
+          {/* {isTeacher && selected?.id && selected?.status === "new" && (
+            <div className="mt-3">
               <button
                 type="button"
-                className="bg-blue-600 text-white px-3 py-1 rounded"
+                className="bg-yellow-500 text-white px-3 py-1 rounded"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`/api/questions/${q.id}/sync-irt`, {
-                      method: "POST",
+                    notify?.("⏳ Sending for review...");
+                    const res = await fetch(`/api/questions/${selected.id}/lifecycle`, {
+                      method: "PATCH",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(q.irtParams),
+                      body: JSON.stringify({ action: "review", userId: auth?.username || "unknown", role }),
                     });
-                    if (!res.ok) throw new Error("Sync failed");
-                    const data = await res.json();
-                    updateField("irtParams", data.irtParams);
-                    notify?.("✅ Synced IRT parameters from R backend");
+                    const body = await res.json();
+                    if (!res.ok) throw new Error(body.error || res.statusText);
+                    notify?.("✅ Sent for review", "success");
+                    // refresh list & selected
+                    const updated = await fetch("/api/questions").then((r) => r.json());
+                    setQuestions(updated || []);
+                    // update selected to the returned question if available
+                    if (body?.question) setSelected((s) => ({ ...s, ...body.question }));
                   } catch (err) {
-                    notify?.("❌ IRT sync failed: " + err.message);
+                    console.error("Send for review failed:", err);
+                    notify?.("❌ Send for review failed: " + (err.message || err), "error");
                   }
                 }}
               >
-                Sync from R
+                Send for Review
               </button>
             </div>
-          </div>
+          )} */}
 
-          {q.irtParams?.updatedAt && (
-            <div className="text-xs text-gray-500 mt-1">
-              Last updated: {new Date(q.irtParams.updatedAt).toLocaleString()}
+          {/* District: hint — lifecycle buttons are available in the list/dashboard UI */}
+          {isDistrict && (
+            <div className="text-sm text-gray-600 mt-3">
+              Use the question list or dashboard to change lifecycle (approve / move to review).
             </div>
           )}
-        </div>
-
+        </>
+      )}
         {/* Save/Delete */}
         <div className="flex justify-end space-x-2 pt-3 border-t">
           <button

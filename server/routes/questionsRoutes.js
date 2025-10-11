@@ -139,62 +139,195 @@ router.put("/:id", (req, res) => {
 // PATCH /api/questions/:id/lifecycle
 // Update question lifecycle (promote, retire, reactivate)
 // ------------------------------
-router.patch("/:id/lifecycle", (req, res) => {
+// router.patch("/:id/lifecycle", (req, res) => {
+//   const { id } = req.params;
+//   const { action, userId, role } = req.body; // expect role from frontend for validation & action: review|activate|retire|reactivate
+//   const db = loadDB();
+//   const question = db.questions?.find((q) => q.id === id);
+//   if (!question) return res.status(404).json({ error: "Question not found" });
+
+//   switch (action) {
+//     case "review":
+//       // Teachers can send new → review
+//       if (question.status === "new") {
+//         question.status = "review";
+//         question.modifier = userId;
+//       } else if (["active"].includes(question.status) && ["district", "admin"].includes(userId)) {
+//         // District/Admin can demote active → review
+//         question.status = "review";
+//         question.modifier = userId;
+//       } else {
+//         return res.status(400).json({ error: `Cannot set status ${question.status} → review` });
+//       }
+//       break;
+
+//     case "activate":
+//       // Only District or Admin can promote review → active
+//       if (question.status === "review" && ["district", "admin"].includes(userId)) {
+//         question.status = "active";
+//         question.modifier = userId;
+//       } else {
+//         return res.status(403).json({ error: "Only District or Admin can activate questions" });
+//       }
+//       break;
+
+//     case "retire":
+//       // Admin only
+//       if (["admin"].includes(userId)) {
+//         question.status = "retired";
+//         question.modifier = userId;
+//       } else {
+//         return res.status(403).json({ error: "Only Admin can retire questions" });
+//       }
+//       break;
+
+//     default:
+//       return res.status(400).json({ error: "Invalid lifecycle action" });
+//   }
+
+//   question.updatedAt = new Date().toISOString();
+//   saveDB(db);
+//   res.json(question);
+// });
+
+// ------------------------------
+// PATCH /api/questions/:id/lifecycle
+// Update question lifecycle (promote, demote, retire)
+// ------------------------------
+router.patch("/:id/lifecycle", async (req, res) => {
   const { id } = req.params;
-  const { action, userId } = req.body; // action: review|activate|retire|reactivate
-  const db = loadDB();
-  const question = db.questions?.find((q) => q.id === id);
-  if (!question) return res.status(404).json({ error: "Question not found" });
+  const { action, userId, role } = req.body; // Expect role + user info from frontend
 
-  switch (action) {
-    case "review":
-      question.status = "review";
-      break;
-    case "activate":
-      question.status = "active";
-      question.modifier = userId || "district_user";
-      break;
-    case "retire":
-      question.status = "retired";
-      break;
-    case "reactivate":
-      if ((question.reactivationCount || 0) < (question.maxReactivations || 2)) {
-        question.status = "active";
-        question.reactivationCount = (question.reactivationCount || 0) + 1;
-      } else {
-        return res.status(400).json({ error: "Max reactivations reached" });
-      }
-      break;
-    default:
-      return res.status(400).json({ error: "Invalid action" });
+  try {
+    // Get the current question from Mongo
+    const question = await dbAdapter.get("questions", id);
+    if (!question) {
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    // Lifecycle policy enforcement
+    switch (action) {
+      case "review":
+        // Teacher can send new → review
+        if (question.status === "new" && role === "teacher") {
+          question.status = "review";
+          question.modifier = userId;
+        }
+        // District/Admin can demote active → review
+        else if (question.status === "active" && ["district", "admin"].includes(role)) {
+          question.status = "review";
+          question.modifier = userId;
+        } else {
+          return res
+            .status(400)
+            .json({ error: `Invalid transition: ${question.status} → review` });
+        }
+        break;
+
+      case "activate":
+        // Only District/Admin can promote review → active
+        if (question.status === "review" && ["district", "admin"].includes(role)) {
+          question.status = "active";
+          question.modifier = userId;
+        }
+        // Admin can reactivate retired → active
+        else if (question.status === "retired" && role === "admin") {
+          question.status = "active";
+          question.modifier = userId;
+          question.reactivationCount = (question.reactivationCount || 0) + 1;
+
+          // Optional: enforce max reactivation limit
+          if (
+            question.maxReactivations &&
+            question.reactivationCount > question.maxReactivations
+          ) {
+            return res
+              .status(400)
+              .json({ error: "Max reactivations reached for this question" });
+          }
+        } else {
+          return res
+            .status(403)
+            .json({ error: "Only District/Admin can activate questions" });
+        }
+        break;
+
+      case "retire":
+        // Only Admin can retire
+        if (role === "admin") {
+          question.status = "retired";
+          question.modifier = userId;
+        } else {
+          return res
+            .status(403)
+            .json({ error: "Only Admin can retire questions" });
+        }
+        break;
+
+      default:
+        return res.status(400).json({ error: "Invalid lifecycle action" });
+    }
+
+    question.updatedAt = new Date().toISOString();
+
+    // Persist changes in MongoDB
+    const updated = await dbAdapter.update("questions", id, question);
+
+    res.json({ success: true, question: updated });
+  } catch (err) {
+    console.error("Lifecycle update failed:", err);
+    res.status(500).json({ error: "Server error updating lifecycle" });
   }
-
-  question.updatedAt = new Date().toISOString();
-  saveDB(db);
-  res.json(question);
 });
+
 
 // ------------------------------
 // POST /api/questions/:id/sync-irt
-// Called by R backend to update IRT parameters (a,b,c)
+// Trigger IRT sync from R backend and update Mongo
 // ------------------------------
-router.post("/:id/sync-irt", (req, res) => {
+import fetch from "node-fetch";
+
+router.post("/:id/sync-irt", async (req, res) => {
   const { id } = req.params;
-  const { a, b, c } = req.body;
-  const db = loadDB();
-  const question = db.questions?.find((q) => q.id === id);
-  if (!question) return res.status(404).json({ error: "Question not found" });
+  try {
+    // 1️⃣ Get question
+    const question = await dbAdapter.get("questions", id);
+    if (!question) return res.status(404).json({ error: "Question not found" });
 
-  question.irtParams = {
-    a: Number(a) || question.irtParams?.a || 1.0,
-    b: Number(b) || question.irtParams?.b || 0.0,
-    c: Number(c) || question.irtParams?.c || 0.2,
-    updatedAt: new Date().toISOString(),
-    source: "R-backend",
-  };
+    // 2️⃣ Call R backend for IRT parameter estimation
+    const rUrl =
+      process.env.R_BACKEND_URL || "http://r-backend:4000";
+    const response = await fetch(`${rUrl}/irt-estimate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        questionId: question.id,
+        responses: question.responses || [],
+      }),
+    });
 
-  saveDB(db);
-  res.json({ success: true, irtParams: question.irtParams });
+    if (!response.ok) throw new Error("R backend IRT sync failed");
+    const result = await response.json();
+
+    // 3️⃣ Update question in Mongo
+    question.irtParams = {
+      a: result.a,
+      b: result.b,
+      c: result.c,
+      updatedAt: new Date().toISOString(),
+      source: "R backend",
+    };
+
+    const updated = await dbAdapter.update("questions", id, question);
+
+    res.json({
+      success: true,
+      irtParams: updated.irtParams,
+    });
+  } catch (err) {
+    console.error("IRT sync failed:", err);
+    res.status(500).json({ error: "Failed to sync IRT parameters" });
+  }
 });
 
 // ------------------------------

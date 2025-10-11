@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import Spinner from "../components/ui/Spinner";
 import toast from "react-hot-toast";
 
-import QuestionDashboard from "@/components/questions/QuestionDashboard";
+import QuestionBankTabs from "@/components/questions/QuestionBankTabs";
 
 // Reusable placeholder table
 function PlaceholderTable({ columns }) {
@@ -68,12 +68,16 @@ export default function AdminPage() {
     <DashboardLayout
       title="Admin Dashboard"
       tabs={[
-        {
-          id: "questions",
-          label: "Questions",
-          content: <QuestionDashboard />,
-          entity: "questions"
-        },
+        { id: "questions", label: "QuestionBank", content: <QuestionBankTabs />, entity: "questions" },
+        { id: "competencies", label: "Competencies", content: <CompetencyModelBuilder />, entity: "competencyModels" },
+        { id: "evidence", label: "Evidences", content: <EvidenceModelBuilder />, entity: "evidenceModels" },
+        { id: "tasks", label: "Activity Templates", content: <TaskModelBuilder />, entity: "taskModels" },
+        // {
+        //   id: "questions",
+        //   label: "Questions",
+        //   content: <QuestionDashboard />,
+        //   entity: "questions"
+        // },
         {
           id: "users",
           label: "Users",

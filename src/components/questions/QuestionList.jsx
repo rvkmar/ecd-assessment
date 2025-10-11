@@ -5,7 +5,7 @@ import Modal from "../ui/Modal";
 
 
 import toast from "react-hot-toast";
-
+import { Send } from "lucide-react";
 
 export default function QuestionList({ notify, onEdit }) {
   const [questions, setQuestions] = useState([]);
@@ -255,38 +255,86 @@ export default function QuestionList({ notify, onEdit }) {
                   </td>
                   <td className="border p-2 space-x-2">
                     <button
-                      onClick={() => onEdit(parent)}
-                      className="bg-blue-600 text-white px-2 py-1 rounded"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => confirmDeleteFromList(parent.id)}
-                      className="bg-red-500 text-white px-2 py-1 rounded"
-                    >
-                      Delete
-                    </button>
-                  {/* 🔹 Lifecycle Buttons by Role */}
-                  {role === "teacher" && parent.status === "new" && (
-                    <button
-                      onClick={() => handleLifecycleAction(parent.id, "review")}
-                      className="bg-yellow-500 text-white px-2 py-1 rounded"
-                    >
-                      Send for Review
-                    </button>
-                  )}
-                  {role === "district" && parent.status === "review" && (
-                    <button
-                      onClick={() => handleLifecycleAction(parent.id, "activate")}
-                      className="bg-green-600 text-white px-2 py-1 rounded"
-                    >
-                      Approve (Activate)
-                    </button>
-                  )}
+                    onClick={() => onEdit(parent)}
+                    disabled={
+                      ["teacher", "district"].includes(role) &&
+                      parent.status !== "new"
+                    }
+                    className={`px-2 py-1 rounded text-white ${
+                      ["teacher", "district"].includes(role) &&
+                      parent.status !== "new"
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700"
+                    }`}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={() => confirmDeleteFromList(parent.id)}
+                    disabled={
+                      ["teacher", "district"].includes(role) &&
+                      parent.status !== "new"
+                    }
+                    className={`px-2 py-1 rounded text-white ${
+                      ["teacher", "district"].includes(role) &&
+                      parent.status !== "new"
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-red-500 hover:bg-red-600"
+                    }`}
+                  >
+                    Delete
+                  </button>
+
+                  {/* 🔹 Lifecycle buttons by role & status */}
+
+                  {/* 👩‍🏫 Teacher / 🏛️ District: only Send for Review (new → review) */}
+                  {["teacher", "district"].includes(role) &&
+                    parent.status === "new" && (
+                      <button
+                        onClick={() =>
+                          handleLifecycleAction(parent.id, "review")
+                        }
+                        className="flex items-center gap-1 bg-yellow-500 text-white px-2 py-1 rounded"
+                      >
+                        <Send size={14} />
+                        Send for Review
+                      </button>
+                    )}
+
+                  {/* 🏛️ District / 👑 Admin: review → active */}
+                  {["district", "admin"].includes(role) &&
+                    parent.status === "review" && (
+                      <button
+                        onClick={() =>
+                          handleLifecycleAction(parent.id, "activate")
+                        }
+                        className="bg-green-600 text-white px-2 py-1 rounded"
+                      >
+                        Mark as Active
+                      </button>
+                    )}
+
+                  {/* 🏛️ District / 👑 Admin: active → review */}
+                  {["district", "admin"].includes(role) &&
+                    parent.status === "active" && (
+                      <button
+                        onClick={() =>
+                          handleLifecycleAction(parent.id, "review")
+                        }
+                        className="bg-gray-500 text-white px-2 py-1 rounded"
+                      >
+                        Move to Review
+                      </button>
+                    )}
+
+                  {/* 👑 Admin-only: retire / reactivate */}
                   {role === "admin" && parent.status === "active" && (
                     <button
-                      onClick={() => handleLifecycleAction(parent.id, "retire")}
-                      className="bg-gray-500 text-white px-2 py-1 rounded"
+                      onClick={() =>
+                        handleLifecycleAction(parent.id, "retire")
+                      }
+                      className="bg-red-600 text-white px-2 py-1 rounded"
                     >
                       Retire
                     </button>
@@ -294,13 +342,13 @@ export default function QuestionList({ notify, onEdit }) {
                   {role === "admin" && parent.status === "retired" && (
                     <button
                       onClick={() =>
-                        handleLifecycleAction(parent.id, "reactivate")
+                        handleLifecycleAction(parent.id, "activate")
                       }
-                      className="bg-blue-500 text-white px-2 py-1 rounded"
+                      className="bg-blue-600 text-white px-2 py-1 rounded"
                     >
                       Reactivate
                     </button>
-                  )}                    
+                  )}               
                   </td>
                 </tr>
 
@@ -391,8 +439,9 @@ export default function QuestionList({ notify, onEdit }) {
                   {role === "teacher" && q.status === "new" && (
                     <button
                       onClick={() => handleLifecycleAction(q.id, "review")}
-                      className="bg-yellow-500 text-white px-2 py-1 rounded"
+                      className="flex items-center gap-1 bg-yellow-500 text-white px-2 py-1 rounded"
                     >
+                      <Send size={14} />
                       Send for Review
                     </button>
                   )}
